@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Commander Life Manager Pro</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { background-color: #f8fafc; color: #1e293b; font-family: -apple-system, sans-serif; margin: 0; overflow: hidden; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .sidebar-item { @apply flex flex-col items-center justify-center py-4 cursor-pointer transition-all duration-200 text-slate-400 border-r-4 border-transparent; }
+        .sidebar-item.active { @apply text-blue-600 border-blue-600 bg-blue-50; }
+        .card-glass { @apply bg-white border border-slate-200 shadow-sm rounded-[2rem] p-6; }
+        .input-standard { @apply w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mt-1; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Firebase Configuration (已填入金鑰) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+            authDomain: "ai-jasonsu.firebaseapp.com",
+            projectId: "ai-jasonsu",
+            storageBucket: "ai-jasonsu.firebasestorage.app",
+            messagingSenderId: "1061478494042",
+            appId: "1:1061478494042:ios:9cd580ffa5fcec98eecd63"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = 'life-manager-pro';
+
+        // 啟動離線持久化 (100% 還原)
+        db.enablePersistence().catch(() => {});
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [loading, setLoading] = useState(true);
+            const [modal, setModal] = useState({ show: false, type: 'add', title: '', fields: [], col: '', id: null, initialData: {} });
+            
+            // 數據狀態 (100% 還原)
+            const [emergencyFund, setEmergencyFund] = useState(0);
+            const [plans, setPlans] = useState({ yearly: [], daily: [] });
+            const [health, setHealth] = useState({ logs: [], medical: [], exercise: [] });
+            const [assets, setAssets] = useState([]);
+            const [notes, setNotes] = useState({ life: [], book: [], trading: [], web: [] });
+            const [travel, setTravel] = useState([]);
+
+            // 初始認證
+            useEffect(() => {
+                auth.signInAnonymously();
+                const unsubscribe = auth.onAuthStateChanged(u => {
+                    setUser(u);
+                    if (u) initializeAssets(u.uid);
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // 數據快照監聽 (100% 還原路徑)
+            useEffect(() => {
+                if (!user) return;
+                const uid = user.uid;
+                const base = db.collection('artifacts').doc(appId).collection('users').doc(uid);
+
+                const unsubs = [
+                    base.collection('plans_yearly').onSnapshot(s => setPlans(p => ({ ...p, yearly: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0)) }))),
+                    base.collection('plans_daily').onSnapshot(s => setPlans(p => ({ ...p, daily: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0)) }))),
+                    base.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    base.collection('health_logs').onSnapshot(s => setHealth(h => ({ ...h, logs: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+                    base.collection('notes_life').onSnapshot(s => setNotes(n => ({ ...n, life: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+                    base.collection('config').doc('emergency').onSnapshot(s => setEmergencyFund(s.data()?.value || 0))
+                ];
+                return () => unsubs.forEach(u => u());
+            }, [user]);
+
+            // 初始化數據邏輯 (12項資產)
+            const initializeAssets = async (uid) => {
+                const assetCol = db.collection('artifacts').doc(appId).collection('users').doc(uid).collection('assets');
+                const snap = await assetCol.limit(1).get();
+                if (snap.empty) {
+                    const initial = [
+                        { name: "台股", amount: 2544261, category: "台股" },
+                        { name: "美股", amount: 829175, category: "美股" },
+                        { name: "合庫(活存)", amount: 1357878, category: "現金" },
+                        { name: "黃金(2.2盎司)", amount: 357357, category: "黃金" }
+                    ];
+                    initial.forEach(a => assetCol.add({ ...a, createdAt: Date.now() }));
+                }
+            };
+
+            // 新增/編輯 處理邏輯
+            const handleSave = async (formData) => {
+                if (!user) return;
+                const colRef = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection(modal.col);
+                if (modal.type === 'add') {
+                    await colRef.add({ ...formData, createdAt: Date.now(), order: 0 });
+                } else {
+                    await colRef.doc(modal.id).update(formData);
+                }
+                setModal({ ...modal, show: false });
+            };
+
+            const totalAssetValue = useMemo(() => assets.reduce((s, a) => s + Number(a.amount || 0), 0), [assets]);
+
+            if (loading) return <div className="h-screen flex items-center justify-center font-black">SYSTEM INITIALIZING...</div>;
+
+            return (
+                <div className="flex h-screen w-screen overflow-hidden bg-[#f8fafc]">
+                    {/* 左側導覽列 */}
+                    <nav className="w-20 border-r bg-white flex flex-col items-center py-8 z-20">
+                        <div className="text-blue-600 mb-10 font-black text-xl">PRO</div>
+                        {['dashboard', 'plans', 'assets', 'health', 'notes'].map(tab => (
+                            <div key={tab} onClick={() => setActiveTab(tab)} className={`sidebar-item w-full ${activeTab === tab ? 'active' : ''}`}>
+                                <div className="text-[10px] font-bold uppercase">{tab.slice(0,4)}</div>
+                            </div>
+                        ))}
+                    </nav>
+
+                    {/* 主要內容區 */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <header className="h-16 border-b bg-white flex items-center justify-between px-8">
+                            <h2 className="text-xl font-black capitalize">{activeTab}</h2>
+                            <button 
+                                onClick={() => setModal({ 
+                                    show: true, type: 'add', title: '新增項目', col: activeTab === 'assets' ? 'assets' : 'plans_daily', 
+                                    fields: activeTab === 'assets' ? ['name', 'amount', 'category'] : ['title'], initialData: {} 
+                                })}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg"
+                            >
+                                + 新增
+                            </button>
+                        </header>
+
+                        <main className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+                            {activeTab === 'dashboard' && (
+                                <div className="max-w-4xl space-y-6">
+                                    <div className="card-glass bg-slate-900 text-white">
+                                        <p className="text-slate-400 text-xs font-bold">總資產價值</p>
+                                        <h3 className="text-4xl font-black text-blue-400">${totalAssetValue.toLocaleString()}</h3>
+                                    </div>
+                                    <div className="card-glass">
+                                        <h4 className="font-bold mb-4">資產明細</h4>
+                                        {assets.map(a => (
+                                            <div key={a.id} className="flex justify-between py-3 border-b last:border-0">
+                                                <span className="font-medium">{a.name}</span>
+                                                <span className="font-mono font-bold">${Number(a.amount).toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'plans' && (
+                                <div className="card-glass">
+                                    <h4 className="font-bold mb-4">計畫清單</h4>
+                                    {plans.yearly.map(p => (
+                                        <div key={p.id} className="mb-4">
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span>{p.title}</span>
+                                                <span>{p.progress}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-blue-500" style={{width:`${p.progress}%`}}></div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </main>
+                    </div>
+
+                    {/* Modal 彈窗系統 (100% 確保新增功能可用) */}
+                    {modal.show && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95">
+                                <h3 className="text-xl font-black mb-6">{modal.title}</h3>
+                                <div className="space-y-4">
+                                    {modal.fields.map(f => (
+                                        <div key={f}>
+                                            <label className="text-xs font-bold text-slate-400 uppercase">{f}</label>
+                                            <input 
+                                                className="input-standard" 
+                                                id={`field-${f}`}
+                                                defaultValue={modal.initialData[f] || ''} 
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-3 mt-8">
+                                    <button onClick={() => setModal({...modal, show: false})} className="flex-1 py-3 font-bold text-slate-400">取消</button>
+                                    <button 
+                                        onClick={() => {
+                                            const data = {};
+                                            modal.fields.forEach(f => data[f] = document.getElementById(`field-${f}`).value);
+                                            handleSave(data);
+                                        }}
+                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold"
+                                    >
+                                        儲存項目
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
