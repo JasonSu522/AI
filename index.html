@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人生管理 | Life Manager Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #020617; color: #e2e8f0; font-family: ui-sans-serif, system-ui, sans-serif; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+  .rounded-3xl { border-radius: 1.5rem; }
+  .italic { font-style: italic; }
+  .font-black { font-weight: 900; }
+  .tracking-tighter { letter-spacing: -0.05em; }
+  .animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .progress-bar { height: 6px; background: #1e293b; border-radius: 9999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #3b82f6; border-radius: 9999px; transition: width 0.4s; }
+  nav { position: fixed; left: 0; top: 0; bottom: 0; width: 64px; background: #0f172a; border-right: 1px solid #1e293b; display: flex; flex-direction: column; align-items: center; padding: 24px 0; z-index: 40; }
+  main { margin-left: 64px; padding: 32px; max-width: calc(100vw - 64px); overflow-y: auto; height: 100vh; }
+  @media (max-width: 640px) {
+    nav { width: 100%; height: 60px; top: auto; bottom: 0; flex-direction: row; border-right: none; border-top: 1px solid #1e293b; padding: 0; justify-content: space-around; }
+    main { margin-left: 0; margin-bottom: 60px; height: calc(100vh - 60px); }
+  }
+  .modal-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+  .modal-card { position: relative; background: #0f172a; border: 1px solid #1e293b; width: 100%; max-width: 448px; border-radius: 2.5rem; padding: 40px; }
+  input, textarea, select { background: #1e293b; border: 1px solid #334155; border-radius: 1rem; padding: 16px 20px; font-size: 14px; color: #e2e8f0; width: 100%; outline: none; }
+  .btn-primary { background: #2563eb; color: white; border-radius: 1rem; padding: 16px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3em; width: 100%; cursor: pointer; }
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 1.5rem; padding: 24px; }
+  .sidebar-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 56px; border: none; background: transparent; cursor: pointer; color: #64748b; }
+  .sidebar-btn.active { color: #60a5fa; background: rgba(59,130,246,0.1); border-right: 2px solid #3b82f6; }
+  .asset-row { padding: 16px; background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .note-card { background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; overflow: hidden; margin-bottom: 12px; }
+  .note-header { width: 100%; padding: 16px; text-align: left; display: flex; justify-content: space-between; align-items: center; background: transparent; border: none; color: #e2e8f0; cursor: pointer; font-weight: 900; font-style: italic; font-size: 12px; }
+  .note-body { padding: 20px; background: rgba(2,6,23,0.4); border-top: 1px solid rgba(30,41,59,0.5); font-size: 11px; color: #94a3b8; line-height: 1.6; }
+  .drag-item { padding: 16px; background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; cursor: grab; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+  authDomain: "life-manager-pro.firebaseapp.com",
+  projectId: "life-manager-pro",
+  storageBucket: "life-manager-pro.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:0000000000000000000000"
+};
+const GEMINI_API_KEY = "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28";
+const APP_ID = 'life-manager-pro';
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Icon Helper
+const Icon = ({ name, size = 18, className = "" }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const icon = window.lucide.createElement(name);
+      if (icon) {
+        icon.setAttribute('width', size);
+        icon.setAttribute('height', size);
+        if (className) icon.setAttribute('class', className);
+        ref.current.appendChild(icon);
+      }
+    }
+  }, [name, size, className]);
+  return <span ref={ref} style={{display:'inline-flex',alignItems:'center'}}></span>;
+};
+
+// --- 圖表組件 (100% 還原 SVG 邏輯) ---
+const RadarChart = ({ data }) => {
+  const keys = ["wealth", "health", "growth", "discipline", "experience"];
+  const labels = ["財務", "健康", "成長", "自律", "體驗"];
+  const getCoord = (idx, value) => {
+    const angle = (Math.PI * 2 * idx) / 5 - Math.PI / 2;
+    const r = (65 * value) / 100;
+    return [100 + r * Math.cos(angle), 100 + r * Math.sin(angle)];
+  };
+  const points = keys.map((k, i) => getCoord(i, data[k] || 50).join(',')).join(' ');
+  return (
+    <svg viewBox="0 0 200 200" style={{width:'100%',maxWidth:'220px'}}>
+      {[25, 50, 75, 100].map(v => <polygon key={v} points={keys.map((_, i) => getCoord(i, v).join(',')).join(' ')} fill="none" stroke="#1e293b" strokeWidth="0.5" />)}
+      <polygon points={points} fill="rgba(59,130,246,0.25)" stroke="#3b82f6" strokeWidth="2" />
+      {labels.map((l, i) => { const [x, y] = getCoord(i, 115); return <text key={i} x={x} y={y} fill="#64748b" fontSize="10" fontWeight="900" textAnchor="middle">{l}</text>; })}
+    </svg>
+  );
+};
+
+const PieChartAsset = ({ data }) => {
+  const total = data.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  let cumulativePercent = 0;
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  return (
+    <div style={{position:'relative',width:'100%',maxWidth:'260px',margin:'0 auto',aspectRatio:'1'}}>
+      <svg viewBox="-1.2 -1.2 2.4 2.4" style={{transform:'rotate(-90deg)',width:'100%',height:'100%'}}>
+        {data.map((item, i) => {
+          const percent = total > 0 ? Number(item.amount) / total : 0;
+          if (percent <= 0) return null;
+          const startX = Math.cos(2 * Math.PI * cumulativePercent);
+          const startY = Math.sin(2 * Math.PI * cumulativePercent);
+          cumulativePercent += percent;
+          const endX = Math.cos(2 * Math.PI * cumulativePercent);
+          const endY = Math.sin(2 * Math.PI * cumulativePercent);
+          return <path key={i} d={`M ${startX} ${startY} A 1 1 0 ${percent > 0.5 ? 1 : 0} 1 ${endX} ${endY} L 0 0`} fill={colors[i % colors.length]} stroke="#020617" strokeWidth="0.02" />;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+const MultiHealthChart = ({ data }) => {
+  if (data.length < 2) return <div className="h-48 flex items-center justify-center text-[10px] italic text-slate-600">數據不足</div>;
+  const width = 400, height = 180, padding = 20;
+  const getPoints = (key, color) => {
+    const vals = data.map(d => Number(d[key]));
+    const min = Math.min(...vals), max = Math.max(...vals), range = max - min || 1;
+    const pts = data.map((d, i) => `${padding + (i/(data.length-1))*(width-2*padding)},${(height-padding) - ((Number(d[key])-min)/range)*(height-2*padding)}`).join(' ');
+    return <polyline fill="none" stroke={color} strokeWidth="2" points={pts} />;
+  };
+  return (
+    <div className="mt-4 p-4 bg-slate-900/30 rounded-xl border border-slate-800">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-40 overflow-visible">
+        {getPoints('weight', '#3b82f6')}{getPoints('fat', '#ef4444')}{getPoints('muscle', '#10b981')}
+      </svg>
+    </div>
+  );
+};
+
+// --- 主應用邏輯 ---
+function App() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [expandedNote, setExpandedNote] = useState(null);
+  
+  const [assets, setAssets] = useState([]);
+  const [plans, setPlans] = useState({ yearly: [], daily: [] });
+  const [health, setHealth] = useState({ logs: [] });
+  const [notes, setNotes] = useState({ life: [], trading: [], book: [], web: [] });
+  const [travel, setTravel] = useState([]);
+  const [radarData, setRadarData] = useState({ wealth: 50, health: 50, growth: 50, discipline: 50, experience: 50 });
+  const [modal, setModal] = useState({ show: false, title: '', col: '', fields: [], initialData: {} });
+
+  useEffect(() => {
+    auth.signInAnonymously();
+    const unsub = auth.onAuthStateChanged(u => {
+      if (u) {
+        setUser(u);
+        const base = db.collection('artifacts').doc(APP_ID).collection('users').doc(u.uid);
+        base.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({id:d.id, ...d.data()}))));
+        base.collection('plans_yearly').onSnapshot(s => setPlans(p => ({...p, yearly: s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>a.order-b.order)})));
+        base.collection('plans_daily').onSnapshot(s => setPlans(p => ({...p, daily: s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>a.order-b.order)})));
+        base.collection('health_logs').onSnapshot(s => setHealth(h => ({...h, logs: s.docs.map(d => ({id:d.id, ...d.data()})).sort((a,b)=>a.createdAt-b.createdAt)})));
+        base.collection('notes_life').onSnapshot(s => setNotes(n => ({...n, life: s.docs.map(d => ({id:d.id, ...d.data()}))})));
+        base.collection('notes_trading').onSnapshot(s => setNotes(n => ({...n, trading: s.docs.map(d => ({id:d.id, ...d.data()}))})));
+        base.collection('travel').onSnapshot(s => setTravel(s.docs.map(d => ({id:d.id, ...d.data()}))));
+      }
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const totalAssetValue = useMemo(() => assets.reduce((a, b) => a + Number(b.amount || 0), 0), [assets]);
+
+  const handleModalSubmit = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const colRef = db.collection('artifacts').doc(APP_ID).collection('users').doc(user.uid).collection(modal.col);
+    if (modal.id) await colRef.doc(modal.id).update(data);
+    else await colRef.add({ ...data, createdAt: Date.now(), order: 999 });
+    setModal({ show: false });
+  };
+
+  const deleteDoc = (col, id) => db.collection('artifacts').doc(APP_ID).collection('users').doc(user.uid).collection(col).doc(id).delete();
+
+  if (loading) return <div className="h-screen bg-[#020617] flex items-center justify-center font-black tracking-widest text-blue-500 italic">SYSTEM INITIALIZING...</div>;
+
+  return (
+    <div className="flex">
+      <nav>
+        <div className="mb-8 text-blue-500"><Icon name="BrainCircuit" size={24} /></div>
+        {[
+          {id:'dashboard', icon:'LayoutDashboard', label:'總覽'},
+          {id:'plans', icon:'Calendar', label:'計畫'},
+          {id:'health', icon:'Heart', label:'健康'},
+          {id:'assets', icon:'PieChart', label:'資產'},
+          {id:'notes', icon:'BookOpen', label:'筆記'},
+          {id:'travel', icon:'Map', label:'旅遊'}
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} className={`sidebar-btn ${activeTab === t.id ? 'active' : ''}`}>
+            <Icon name={t.icon} /><span className="text-[9px] font-black uppercase mt-1">{t.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <main>
+        <header className="flex justify-between items-end mb-8">
+          <div><h1 className="text-2xl font-black italic tracking-tighter uppercase">人生管理</h1><p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">Efficiency & Vision</p></div>
+        </header>
+
+        {activeTab === 'dashboard' && (
+          <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="card flex flex-col items-center justify-center"><RadarChart data={radarData} /></div>
+              <div className="card bg-blue-900/10 border-blue-500/30">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xs font-black italic text-blue-400 uppercase tracking-widest">AI 生命數據分析</h3>
+                  <button className="text-[10px] font-black bg-blue-500/20 px-3 py-1 rounded-lg">重新產生</button>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">目前的財務狀況良好，建議加強健康管理與每日任務的執行力...</p>
+              </div>
+            </div>
+            <div className="card text-center py-10">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">總資產市值</p>
+              <h2 className="text-4xl font-black italic mb-8">${totalAssetValue.toLocaleString()}</h2>
+              <PieChartAsset data={assets} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'plans' && (
+          <div className="space-y-8">
+            <div className="card">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xs font-black italic text-slate-500 uppercase">年度目標進度</h3>
+                <button onClick={()=>setModal({show:true, title:'新增計畫', col:'plans_yearly', fields:[{name:'title', label:'名稱', type:'text'}]})} className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button>
+              </div>
+              {plans.yearly.map(p => (
+                <div key={p.id} className="mb-6">
+                  <div className="flex justify-between text-[10px] font-black italic mb-2"><span>{p.title}</span><span>{p.progress || 0}%</span></div>
+                  <div className="progress-bar"><div className="progress-fill" style={{width:`${p.progress||0}%`}}></div></div>
+                  <button onClick={()=>deleteDoc('plans_yearly', p.id)} className="text-[10px] text-red-900 mt-2 font-black uppercase">Delete</button>
+                </div>
+              ))}
+            </div>
+            <div className="card">
+              <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black italic text-slate-500 uppercase">每日任務</h3><button className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button></div>
+              {plans.daily.map(d => (
+                <div key={d.id} className="drag-item">
+                  <Icon name="GripVertical" className="text-slate-700" />
+                  <span className="flex-1 font-black italic text-sm">{d.title}</span>
+                  <button onClick={()=>deleteDoc('plans_daily', d.id)}><Icon name="Trash2" size={14} className="text-slate-700" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'health' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xs font-black italic text-slate-500 uppercase">數據趨勢圖</h3>
+              <button onClick={()=>setModal({show:true, title:'記錄數據', col:'health_logs', fields:[{name:'weight', label:'體重', type:'number'},{name:'fat', label:'體脂', type:'number'},{name:'muscle', label:'肌肉', type:'number'}]})} className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button>
+            </div>
+            <MultiHealthChart data={health.logs} />
+            <div className="mt-8 space-y-3">
+              {health.logs.slice().reverse().map(l => (
+                <div key={l.id} className="flex justify-between items-center p-4 bg-slate-900/30 rounded-xl border border-slate-800">
+                  <span className="text-[10px] font-black text-slate-500">{new Date(l.createdAt).toLocaleDateString()}</span>
+                  <div className="flex gap-4 text-[11px] font-black italic">
+                    <span className="text-blue-400">W:{l.weight}</span><span className="text-red-400">F:{l.fat}%</span><span className="text-emerald-400">M:{l.muscle}</span>
+                  </div>
+                  <button onClick={()=>deleteDoc('health_logs', l.id)}><Icon name="Trash2" size={14} className="text-slate-700" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'assets' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="card flex flex-col items-center">
+              <h2 className="text-2xl font-black italic mb-6">${totalAssetValue.toLocaleString()}</h2>
+              <PieChartAsset data={assets} />
+            </div>
+            <div className="card">
+              <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black italic text-slate-500 uppercase">資產明細</h3><button onClick={()=>setModal({show:true, title:'新增資產', col:'assets', fields:[{name:'name', label:'名稱', type:'text'},{name:'amount', label:'金額', type:'number'},{name:'category', label:'分類', type:'text'}]})} className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button></div>
+              {assets.map(a => (
+                <div key={a.id} className="asset-row">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-black italic text-white">{a.name}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{a.category}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-blue-400 font-black italic">${Number(a.amount).toLocaleString()}</span>
+                    <button onClick={()=>deleteDoc('assets', a.id)} className="text-slate-700"><Icon name="Trash2" size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {['life', 'trading'].map(key => (
+              <div key={key} className="card">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xs font-black italic text-slate-500 uppercase">{key === 'life' ? '人生成長' : '台指交易'}</h3>
+                  <button onClick={()=>setModal({show:true, title:'新增筆記', col:`notes_${key}`, fields:[{name:'title', label:'標題', type:'text'}, {name:'content', label:'內容', type:'textarea'}]})} className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button>
+                </div>
+                {notes[key]?.map(n => (
+                  <div key={n.id} className="note-card">
+                    <button className="note-header" onClick={() => setExpandedNote(expandedNote === n.id ? null : n.id)}>
+                      <span>{n.title}</span><Icon name={expandedNote === n.id ? "ChevronUp" : "ChevronDown"} size={14} />
+                    </button>
+                    {expandedNote === n.id && (
+                      <div className="note-body">
+                        <p className="whitespace-pre-wrap mb-4">{n.content}</p>
+                        <button onClick={()=>deleteDoc(`notes_${key}`, n.id)} className="text-[9px] font-black text-red-900 uppercase">Delete</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'travel' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6"><h3 className="text-xs font-black italic text-slate-500 uppercase">旅遊願望</h3><button onClick={()=>setModal({show:true, title:'新增旅遊', col:'travel', fields:[{name:'destination', label:'目的地', type:'text'}, {name:'start', label:'開始', type:'date'}, {name:'end', label:'結束', type:'date'}]})} className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="Plus"/></button></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {travel.map(t => (
+                <div key={t.id} className="p-4 bg-slate-900/30 rounded-2xl border border-slate-800 flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-emerald-500/10 p-3 rounded-xl text-emerald-500"><Icon name="MapPin" /></div>
+                    <div><p className="text-sm font-black italic text-white">{t.destination}</p><p className="text-[9px] font-black text-slate-500 uppercase">{t.start} ~ {t.end}</p></div>
+                  </div>
+                  <button onClick={()=>deleteDoc('travel', t.id)} className="text-slate-700"><Icon name="Trash2" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {modal.show && (
+        <div className="modal-overlay">
+          <div className="modal-backdrop" onClick={()=>setModal({show:false})}></div>
+          <div className="modal-card">
+            <h3 className="text-xl font-black italic text-white uppercase mb-8">{modal.title}</h3>
+            <form onSubmit={handleModalSubmit}>
+              {modal.fields.map(f => (
+                <div key={f.name} className="mb-6">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">{f.label}</label>
+                  {f.type === 'textarea' ? <textarea name={f.name} required rows="4" /> : <input name={f.name} type={f.type} required />}
+                </div>
+              ))}
+              <button type="submit" className="btn-primary mt-4">確認儲存</button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
