@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>人生管理 - Efficiency & Vision</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { background-color: #0b0f1a; color: #ffffff; font-family: sans-serif; margin: 0; overflow: hidden; }
+        .sidebar-active { background: rgba(59, 130, 246, 0.15); border-right: 4px solid #3b82f6; color: #3b82f6; }
+        .glass-card { background: #161c2d; border-radius: 28px; border: 1px solid rgba(255,255,255,0.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        input, select, textarea { background: #1e293b !important; color: white !important; border: 1px solid #334155 !important; border-radius: 12px !important; padding: 10px !important; }
+        .btn-primary { background: #3b82f6; color: white; border-radius: 14px; font-weight: 800; transition: all 0.2s; }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 1. Firebase 核心配置 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+            authDomain: "ai-jasonsu.firebaseapp.com",
+            projectId: "ai-jasonsu",
+            storageBucket: "ai-jasonsu.firebasestorage.app",
+            messagingSenderId: "1061478494042",
+            appId: "1:1061478494042:ios:9cd580ffa5fcec98eecd63"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = 'life-manager-pro';
+
+        // --- 2. 離線與持久化支援 ---
+        db.enablePersistence().catch(() => console.log("Persistence disabled"));
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('總覽');
+            const [loading, setLoading] = useState(true);
+            
+            // --- 3. 完整數據狀態狀態 ---
+            const [assets, setAssets] = useState([]);
+            const [emergencyFund, setEmergencyFund] = useState(0);
+            const [plans, setPlans] = useState({ yearly: [], daily: [] });
+            const [health, setHealth] = useState({ logs: [], exercise: [] });
+            const [radarData, setRadarData] = useState({ wealth: 55, health: 65, growth: 75, discipline: 50, experience: 85 });
+            const [modal, setModal] = useState({ show: false, type: 'add', col: '', fields: [] });
+
+            // --- 4. 認證與初始資產注入 (完全還原 12 項資產) ---
+            useEffect(() => {
+                auth.signInAnonymously();
+                const unsubscribe = auth.onAuthStateChanged(async (u) => {
+                    if (u) {
+                        setUser(u);
+                        await checkAndInitAssets(u.uid);
+                    }
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const checkAndInitAssets = async (uid) => {
+                const assetCol = db.collection('artifacts').doc(appId).collection('users').doc(uid).collection('assets');
+                const snap = await assetCol.limit(1).get();
+                if (snap.empty) {
+                    const initial = [
+                        { name: "台股", amount: 2544261, category: "台股" },
+                        { name: "美股", amount: 829175, category: "美股" },
+                        { name: "台新外幣(活)-USD", amount: 4257, category: "美股" },
+                        { name: "台新外幣(活)-JPY", amount: 6006, category: "現金" },
+                        { name: "台新外幣(定)-USD", amount: 75473, category: "美股" },
+                        { name: "合庫(活存)", amount: 1357878, category: "現金" },
+                        { name: "台新(活存)", amount: 57170, category: "現金" },
+                        { name: "彰銀(活存)", amount: 457003, category: "現金" },
+                        { name: "兆豐(備用金)", amount: 43314, category: "現金" },
+                        { name: "黃金(2.2盎司)", amount: 357357, category: "黃金" },
+                        { name: "台幣現金", amount: 20000, category: "現金" },
+                        { name: "借志", amount: 300000, category: "借款" }
+                    ];
+                    const batch = db.batch();
+                    initial.forEach(item => {
+                        const ref = assetCol.doc();
+                        batch.set(ref, { ...item, createdAt: Date.now() });
+                    });
+                    await batch.commit();
+                }
+            };
+
+            // --- 5. 實時數據監聽流 ---
+            useEffect(() => {
+                if (!user) return;
+                const userRef = db.collection('artifacts').doc(appId).collection('users').doc(user.uid);
+                
+                const unsubs = [
+                    userRef.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({id: d.id, ...d.data()})))),
+                    userRef.collection('plans_yearly').onSnapshot(s => setPlans(p => ({...p, yearly: s.docs.map(d => ({id: d.id, ...d.data()}))}))),
+                    userRef.collection('config').doc('emergency').onSnapshot(s => setEmergencyFund(s.data()?.value || 0))
+                ];
+                return () => unsubs.forEach(u => u());
+            }, [user]);
+
+            // --- 6. 核心組件: 雷達圖 (Life Matrix) ---
+            const RadarChart = () => {
+                const canvasRef = useRef(null);
+                useEffect(() => {
+                    const ctx = canvasRef.current.getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: ['財務', '健康', '成長', '自律', '體驗'],
+                            datasets: [{
+                                label: '人生維度',
+                                data: [radarData.wealth, radarData.health, radarData.growth, radarData.discipline, radarData.experience],
+                                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                borderColor: '#3b82f6',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#3b82f6'
+                            }]
+                        },
+                        options: {
+                            scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, angleLines: { color: 'rgba(255,255,255,0.1)' } } },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                    return () => chart.destroy();
+                }, [radarData]);
+                return <canvas ref={canvasRef} />;
+            };
+
+            // --- 7. 核心組件: 資產圓餅圖 ---
+            const AssetPieChart = () => {
+                const canvasRef = useRef(null);
+                const chartData = useMemo(() => {
+                    const groups = {};
+                    assets.forEach(a => {
+                        groups[a.category] = (groups[a.category] || 0) + Number(a.amount);
+                    });
+                    return groups;
+                }, [assets]);
+
+                useEffect(() => {
+                    const ctx = canvasRef.current.getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: Object.keys(chartData),
+                            datasets: [{
+                                data: Object.values(chartData),
+                                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            plugins: { 
+                                legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 12, weight: 'bold' } } }
+                            }
+                        }
+                    });
+                    return () => chart.destroy();
+                }, [chartData]);
+                return <canvas ref={canvasRef} />;
+            };
+
+            const totalAssets = assets.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+            if (loading) return <div className="h-screen flex items-center justify-center font-black text-blue-500 italic">SYSTEM BOOTING...</div>;
+
+            return (
+                <div className="flex h-screen w-screen overflow-hidden">
+                    {/* 左側導覽列 (100% 還原字體與間距) */}
+                    <nav className="w-24 border-r border-white/5 flex flex-col items-center py-10 gap-2 bg-[#0b0f1a] z-20">
+                        <div className="text-blue-500 font-black text-2xl mb-12 tracking-tighter italic">PRO</div>
+                        {[
+                            {id: '總覽', icon: 'M4 6h16M4 12h16M4 18h16'},
+                            {id: '計畫', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'},
+                            {id: '健康', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z'},
+                            {id: '資產', icon: 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z'},
+                            {id: '筆記', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'},
+                            {id: '旅遊', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z'}
+                        ].map(t => (
+                            <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                                className={`w-full flex flex-col items-center py-5 transition-all ${activeTab === t.id ? 'sidebar-active' : 'text-slate-500 hover:text-slate-300'}`}>
+                                <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d={t.icon}></path></svg>
+                                <span className="text-[11px] font-black tracking-widest">{t.id}</span>
+                            </button>
+                        ))}
+                        <div className="mt-auto pb-6 text-slate-600">
+                            <svg className="w-8 h-8 opacity-40" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"></path></svg>
+                        </div>
+                    </nav>
+
+                    {/* 主要內容區 */}
+                    <div className="flex-1 flex flex-col overflow-hidden bg-[#0b0f1a]">
+                        <header className="h-24 flex items-center justify-between px-10 border-b border-white/5">
+                            <div>
+                                <h1 className="text-3xl font-black tracking-tight italic uppercase">{activeTab}</h1>
+                                <p className="text-[10px] text-slate-500 font-bold tracking-[0.3em] uppercase mt-1">Efficiency & Vision System</p>
+                            </div>
+                            <button className="btn-primary px-6 py-3 text-sm flex items-center gap-2 shadow-xl shadow-blue-500/20">
+                                <span>+ 新增</span>
+                            </button>
+                        </header>
+
+                        <main className="flex-1 overflow-y-auto p-8 no-scrollbar space-y-8 bg-[#0b0f1a]">
+                            {activeTab === '總覽' && (
+                                <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                    {/* 雷達圖卡片 */}
+                                    <div className="glass-card p-10 relative overflow-hidden group">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                                        <h3 className="text-blue-400 text-xs font-black tracking-[0.2em] flex items-center gap-3 mb-10">
+                                            <span className="w-8 h-[2px] bg-blue-500"></span> 人生雷達圖 (LIFE MATRIX)
+                                        </h3>
+                                        <div className="max-w-xs mx-auto transform group-hover:scale-105 transition-transform duration-500">
+                                            <RadarChart />
+                                        </div>
+                                    </div>
+
+                                    {/* 資產圓餅圖卡片 */}
+                                    <div className="glass-card p-10">
+                                        <p className="text-center text-slate-500 text-xs font-black tracking-widest uppercase mb-2">總資產市值 (淨值)</p>
+                                        <h2 className="text-center text-5xl font-black mb-12 tracking-tighter">${totalAssets.toLocaleString()}</h2>
+                                        
+                                        <div className="max-w-sm mx-auto mb-12">
+                                            <AssetPieChart />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-white/5 pt-10">
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                                <p className="text-slate-500 text-[10px] font-black tracking-widest uppercase mb-1">緊急預備金</p>
+                                                <div className="flex items-end gap-3">
+                                                    <span className="text-3xl font-black text-blue-500">${emergencyFund.toLocaleString()}</span>
+                                                    <button className="text-[10px] bg-white/10 px-3 py-1 rounded-full font-bold text-slate-400 hover:text-white mb-1">修改</button>
+                                                </div>
+                                            </div>
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                                <p className="text-slate-500 text-[10px] font-black tracking-widest uppercase mb-1">投資組合佔比</p>
+                                                <p className="text-3xl font-black text-emerald-500">{(totalAssets > 0 ? ((totalAssets - emergencyFund)/totalAssets * 100).toFixed(1) : 0)}%</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 資產明細列表 (全還原) */}
+                                    <div className="glass-card p-10">
+                                        <h4 className="text-lg font-black mb-8 flex items-center gap-3">
+                                            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            資產明細
+                                        </h4>
+                                        <div className="space-y-1">
+                                            {assets.map(a => (
+                                                <div key={a.id} className="flex justify-between items-center p-5 hover:bg-white/5 rounded-2xl transition-all border-b border-white/5 last:border-0">
+                                                    <div>
+                                                        <p className="font-black text-slate-200">{a.name}</p>
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{a.category}</p>
+                                                    </div>
+                                                    <p className="font-mono text-xl font-black text-white">${Number(a.amount).toLocaleString()}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </main>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
