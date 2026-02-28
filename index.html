@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>人生管理 - Efficiency & Vision</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { background-color: #0b0f1a; color: #ffffff; font-family: -apple-system, sans-serif; overflow: hidden; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .glass-card { background: rgba(22, 28, 45, 0.8); border: 1px solid rgba(255,255,255,0.05); border-radius: 24px; }
+        .sidebar-active { background: rgba(59, 130, 246, 0.1); border-right: 3px solid #3b82f6; color: #3b82f6; }
+        .ai-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 1. Firebase 初始化 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+            authDomain: "ai-jasonsu.firebaseapp.com",
+            projectId: "ai-jasonsu",
+            storageBucket: "ai-jasonsu.firebasestorage.app",
+            messagingSenderId: "1061478494042",
+            appId: "1:1061478494042:ios:9cd580ffa5fcec98eecd63"
+        };
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = 'life-manager-pro';
+
+        // 離線支援
+        db.enablePersistence().catch(() => {});
+
+        function App() {
+            // --- 2. 原始代碼中所有 States 完整還原 ---
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [loading, setLoading] = useState(true);
+            const [modal, setModal] = useState({ show: false, type: 'add', title: '', fields: [], col: '', id: null, initialData: {} });
+            
+            const [aiSummary, setAiSummary] = useState('');
+            const [isAiLoading, setIsAiLoading] = useState(false);
+            const [radarData, setRadarData] = useState({ wealth: 50, health: 50, growth: 50, discipline: 50, experience: 50 });
+            const [isListening, setIsListening] = useState(false);
+
+            const [emergencyFund, setEmergencyFund] = useState(0);
+            const [plans, setPlans] = useState({ yearly: [], daily: [] });
+            const [health, setHealth] = useState({ logs: [], medical: [], exercise: [] });
+            const [assets, setAssets] = useState([]);
+            const [notes, setNotes] = useState({ life: [], book: [], trading: [], web: [] });
+
+            // --- 3. 認證與初始化 ---
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged(async (u) => {
+                    if (u) {
+                        setUser(u);
+                        await initializeAssets(u.uid);
+                    } else {
+                        auth.signInAnonymously();
+                    }
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const initializeAssets = async (uid) => {
+                const assetCol = db.collection('artifacts').doc(appId).collection('users').doc(uid).collection('assets');
+                const snap = await assetCol.limit(1).get();
+                if (snap.empty) {
+                    const initialAssets = [
+                        { name: "台股", amount: 2544261, category: "台股" },
+                        { name: "美股", amount: 829175, category: "美股" },
+                        { name: "台新外幣(活)-USD", amount: 4257, category: "美股" },
+                        { name: "合庫(活存)", amount: 1357878, category: "現金" },
+                        { name: "彰銀(活存)", amount: 457003, category: "現金" },
+                        { name: "黃金(2.2盎司)", amount: 357357, category: "黃金" },
+                        { name: "借志", amount: 300000, category: "借款" }
+                    ];
+                    for (const a of initialAssets) { await assetCol.add({ ...a, createdAt: Date.now() }); }
+                }
+            };
+
+            // --- 4. 數據監聽 (100% 原版路徑) ---
+            useEffect(() => {
+                if (!user) return;
+                const userPath = db.collection('artifacts').doc(appId).collection('users').doc(user.uid);
+                
+                const unsubs = [
+                    userPath.collection('plans_yearly').onSnapshot(s => setPlans(p => ({ ...p, yearly: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>a.order-b.order) }))),
+                    userPath.collection('plans_daily').onSnapshot(s => setPlans(p => ({ ...p, daily: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+                    userPath.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    userPath.collection('config').doc('emergency').onSnapshot(s => setEmergencyFund(s.data()?.value || 0))
+                ];
+                return () => unsubs.forEach(u => u());
+            }, [user]);
+
+            // --- 5. 計算邏輯 (圓餅圖數據) ---
+            const categorizedAssets = useMemo(() => {
+                const cats = { "台股": 0, "美股": 0, "現金": 0, "黃金": 0, "借款": 0 };
+                assets.forEach(a => {
+                    const amt = Number(a.amount) || 0;
+                    const c = a.category || "現金";
+                    if (cats.hasOwnProperty(c)) cats[c] += amt; else cats["現金"] += amt;
+                });
+                return Object.entries(cats).map(([name, amount]) => ({ name, amount }));
+            }, [assets]);
+
+            const totalValue = useMemo(() => categorizedAssets.reduce((a, b) => a + b.amount, 0), [categorizedAssets]);
+
+            // --- 6. AI 邏輯 (Gemini 2.5 接口) ---
+            const callGeminiAI = async (prompt, isJson = false) => {
+                const apiKey = "在此輸入金鑰"; 
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: isJson ? { responseMimeType: "application/json" } : {} })
+                });
+                const res = await resp.json();
+                return res.candidates?.[0]?.content?.parts?.[0]?.text;
+            };
+
+            const generateAiAnalysis = async () => {
+                setIsAiLoading(true);
+                try {
+                    const radarPrompt = `分析數據給予 0-100 評分 JSON: {"wealth":80,"health":60,"growth":70,"discipline":50,"experience":90}。參考：${totalValue}`;
+                    const res = await callGeminiAI(radarPrompt, true);
+                    if (res) setRadarData(JSON.parse(res));
+                } catch (e) { console.error(e); }
+                setIsAiLoading(false);
+            };
+
+            // --- 7. 語音辨識 (Speech API) ---
+            const handleVoiceInput = () => {
+                const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.lang = 'zh-TW';
+                recognition.start();
+                setIsListening(true);
+                recognition.onresult = async (event) => {
+                    const text = event.results[0][0].transcript;
+                    setIsListening(false);
+                    alert("語音輸入：" + text);
+                    // 這裡應接 callGeminiAI 解析並自動新增至 Firestore
+                };
+            };
+
+            // --- 8. UI 組件: 雷達圖與圓餅圖 ---
+            const RadarChartComp = () => {
+                const canvasRef = useRef(null);
+                useEffect(() => {
+                    const chart = new Chart(canvasRef.current, {
+                        type: 'radar',
+                        data: {
+                            labels: ['財務', '健康', '成長', '自律', '體驗'],
+                            datasets: [{ data: Object.values(radarData), backgroundColor: 'rgba(59,130,246,0.2)', borderColor: '#3b82f6' }]
+                        },
+                        options: { scales: { r: { min:0, max:100, grid: { color:'rgba(255,255,255,0.05)' }, angleLines: { color:'rgba(255,255,255,0.1)' }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+                    });
+                    return () => chart.destroy();
+                }, [radarData]);
+                return <canvas ref={canvasRef} />;
+            };
+
+            const PieChartComp = () => {
+                const canvasRef = useRef(null);
+                useEffect(() => {
+                    const chart = new Chart(canvasRef.current, {
+                        type: 'pie',
+                        data: {
+                            labels: categorizedAssets.map(d => `${d.name} ${Math.round(d.amount/totalValue*100)}%`),
+                            datasets: [{ data: categorizedAssets.map(d => d.amount), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] }]
+                        },
+                        options: { plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } } }
+                    });
+                    return () => chart.destroy();
+                }, [categorizedAssets]);
+                return <canvas ref={canvasRef} />;
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center font-black">BOOTING...</div>;
+
+            return (
+                <div className="flex h-screen w-screen bg-[#0b0f1a]">
+                    {/* 左側導覽列 */}
+                    <nav className="w-24 border-r border-white/5 flex flex-col items-center py-8 z-20">
+                        <div className="text-blue-500 font-black text-2xl mb-10 italic">PRO</div>
+                        {[
+                            {id:'dashboard', n:'總覽'}, {id:'plans', n:'計畫'}, {id:'health', n:'健康'},
+                            {id:'assets', n:'資產'}, {id:'notes', n:'筆記'}, {id:'travel', n:'旅遊'}
+                        ].map(t => (
+                            <div key={t.id} onClick={() => setActiveTab(t.id)} 
+                                className={`w-full py-6 flex flex-col items-center cursor-pointer transition-all ${activeTab === t.id ? 'sidebar-active' : 'text-slate-500'}`}>
+                                <span className="text-[11px] font-bold">{t.n}</span>
+                            </div>
+                        ))}
+                        <div onClick={handleVoiceInput} className={`mt-auto p-4 cursor-pointer ${isListening ? 'text-red-500 ai-pulse' : 'text-slate-500'}`}>
+                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">🎤</div>
+                        </div>
+                    </nav>
+
+                    {/* 主要內容 */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <header className="h-20 flex items-center justify-between px-10 border-b border-white/5">
+                            <div>
+                                <h1 className="text-2xl font-black italic tracking-tighter">人生管理</h1>
+                                <p className="text-[9px] text-slate-500 tracking-[0.4em] uppercase">Efficiency & Vision</p>
+                            </div>
+                            <button onClick={() => setModal({ show: true, type: 'add', title: '新增項目', fields: ['name', 'amount', 'category'], col: 'assets' })} 
+                                className="bg-blue-600 px-6 py-2 rounded-xl font-bold text-sm shadow-xl shadow-blue-500/20 hover:scale-105 transition-transform">
+                                + 新增
+                            </button>
+                        </header>
+
+                        <main className="flex-1 overflow-y-auto p-8 no-scrollbar space-y-8">
+                            {/* 第一區塊：雷達圖 */}
+                            <div className="glass-card p-8">
+                                <div className="flex justify-between items-center mb-10">
+                                    <h3 className="text-blue-400 text-xs font-black tracking-widest flex items-center gap-2">
+                                        <div className="w-6 h-[1px] bg-blue-500"></div> 人生雷達圖 (LIFE MATRIX)
+                                    </h3>
+                                    <button onClick={generateAiAnalysis} className="text-[10px] bg-white/5 px-3 py-1 rounded-full text-slate-400">重新產生</button>
+                                </div>
+                                <div className="max-w-xs mx-auto"><RadarChartComp /></div>
+                            </div>
+
+                            {/* 第二區塊：圓餅圖 */}
+                            <div className="glass-card p-8 text-center">
+                                <p className="text-slate-500 text-[10px] font-black tracking-[0.2em] mb-2 uppercase">總資產市值 (淨值)</p>
+                                <h2 className="text-5xl font-black mb-10 tracking-tighter">${totalValue.toLocaleString()}</h2>
+                                <div className="max-w-md mx-auto"><PieChartComp /></div>
+                                
+                                <div className="mt-10 pt-10 border-t border-white/5 flex justify-between items-center">
+                                    <div className="text-left">
+                                        <p className="text-slate-500 text-[10px] font-bold mb-1">緊急預備金</p>
+                                        <p className="text-blue-500 text-2xl font-black">${emergencyFund.toLocaleString()}</p>
+                                    </div>
+                                    <button className="bg-white/5 px-4 py-2 rounded-xl text-xs font-bold text-slate-300">修改金額</button>
+                                </div>
+                            </div>
+
+                            {/* 第三區塊：資產清單 */}
+                            <div className="glass-card p-8">
+                                <h4 className="font-black text-lg mb-6">資產明細</h4>
+                                <div className="space-y-4">
+                                    {assets.map(a => (
+                                        <div key={a.id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl">
+                                            <div>
+                                                <p className="font-bold text-slate-200">{a.name}</p>
+                                                <p className="text-[10px] text-slate-500 uppercase">{a.category}</p>
+                                            </div>
+                                            <p className="font-mono text-xl font-black">${Number(a.amount).toLocaleString()}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+
+                    {/* 完整新增視窗 (Modal) */}
+                    {modal.show && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
+                            <div className="bg-[#161c2d] w-full max-w-sm p-8 rounded-[2.5rem] border border-white/10">
+                                <h3 className="text-xl font-black mb-6">{modal.title}</h3>
+                                <div className="space-y-4">
+                                    {modal.fields.map(f => (
+                                        <div key={f}>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase ml-2">{f}</label>
+                                            <input id={`in-${f}`} className="w-full bg-[#1e293b] border-0 rounded-2xl p-4 mt-1 text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-4 mt-8">
+                                    <button onClick={()=>setModal({show:false})} className="flex-1 py-4 font-bold text-slate-500">取消</button>
+                                    <button onClick={async ()=>{
+                                        const data = {};
+                                        modal.fields.forEach(f => data[f] = document.getElementById(`in-${f}`).value);
+                                        await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection(modal.col).add({...data, createdAt:Date.now()});
+                                        setModal({show:false});
+                                    }} className="flex-1 py-4 bg-blue-600 rounded-2xl font-bold">確認儲存</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
