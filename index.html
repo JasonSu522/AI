@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Manager Pro - 語音 AI 版</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { background-color: #f8fafc; font-family: -apple-system, sans-serif; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .mic-active { background: #ef4444 !important; animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(-1.5rem); } 50% { transform: translateY(-2rem); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- 1. Firebase 配置 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+            authDomain: "ai-jasonsu.firebaseapp.com",
+            projectId: "ai-jasonsu",
+            storageBucket: "ai-jasonsu.firebasestorage.app",
+            messagingSenderId: "1061478494042",
+            appId: "1:1061478494042:ios:9cd580ffa5fcec98eecd63"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = 'life-manager-pro';
+
+        // --- 2. Gemini AI 配置 ---
+        const GEMINI_API_KEY = "在此填入你的GEMINI_API_KEY"; 
+
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            useEffect(() => { lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [assets, setAssets] = useState([]);
+            const [exercises, setExercises] = useState([]); // 新增運動紀錄狀態
+            const [isAiLoading, setIsAiLoading] = useState(false);
+            const [isListening, setIsListening] = useState(false);
+
+            useEffect(() => {
+                auth.signInAnonymously();
+                const unsubscribe = auth.onAuthStateChanged(u => setUser(u));
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+                // 監聽資產
+                db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('assets')
+                    .onSnapshot(s => setAssets(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                
+                // 監聽運動紀錄
+                db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('health_exercise')
+                    .orderBy("createdAt", "desc")
+                    .onSnapshot(s => setExercises(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+            }, [user]);
+
+            // --- AI 通訊 Function ---
+            const callGeminiAI = async (prompt, isJson = false) => {
+                if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("填入")) return null;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            contents: [{ parts: [{ text: prompt }] }],
+                            ...(isJson && { generationConfig: { responseMimeType: "application/json" } })
+                        })
+                    });
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (err) { console.error(err); return null; }
+            };
+
+            // --- 語音輸入與自動分類邏輯 ---
+            const startVoiceInput = () => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) return alert("瀏覽器不支援語音");
+                
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'zh-TW';
+                recognition.start();
+                setIsListening(true);
+                
+                recognition.onresult = async (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    setIsListening(false);
+                    setIsAiLoading(true);
+
+                    // 讓 AI 判斷這句話是在說什麼
+                    const parsePrompt = `將此語句解析為 JSON 格式。如果包含運動相關內容，type 為 "exercise"，data 包含 "content"(運動內容) 和 "duration"(時長)。語句：「${transcript}」。範例：{"type":"exercise","data":{"content":"慢跑","duration":"30分鐘"}}`;
+                    
+                    const aiResult = await callGeminiAI(parsePrompt, true);
+                    if (aiResult) {
+                        const parsed = JSON.parse(aiResult);
+                        if (parsed.type === "exercise") {
+                            await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('health_exercise').add({
+                                ...parsed.data,
+                                createdAt: Date.now()
+                            });
+                            alert(`已記錄運動：${parsed.data.content} (${parsed.data.duration})`);
+                            setActiveTab('health');
+                        }
+                    }
+                    setIsAiLoading(false);
+                };
+                recognition.onerror = () => setIsListening(false);
+            };
+
+            if (!user) return <div className="p-20 text-center font-bold text-blue-500">載入中...</div>;
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-white shadow-2xl flex flex-col relative">
+                    {/* Header */}
+                    <header className="p-5 border-b flex justify-between items-center bg-blue-600 text-white">
+                        <h1 className="text-xl font-bold flex items-center gap-2"><Icon name="sparkles" /> Life Manager</h1>
+                        {isAiLoading && <div className="text-xs bg-white/20 px-2 py-1 rounded pulse">AI 處理中...</div>}
+                    </header>
+
+                    {/* Content Area */}
+                    <main className="flex-1 p-5 overflow-y-auto">
+                        {activeTab === 'dashboard' && (
+                            <div>
+                                <h3 className="font-bold mb-4">資產總覽</h3>
+                                <div className="space-y-2">
+                                    {assets.map(a => (
+                                        <div key={a.id} className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                            <span>{a.name}</span>
+                                            <span className="font-bold">${Number(a.amount).toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'health' && (
+                            <div className="animate-in slide-in-from-right">
+                                <h3 className="font-bold mb-4 flex items-center gap-2"><Icon name="activity" /> 運動紀錄</h3>
+                                <div className="space-y-3">
+                                    {exercises.length === 0 && <p className="text-gray-400 text-center py-10">尚無紀錄，請用語音說「我今天跑了 5 公里」</p>}
+                                    {exercises.map(ex => (
+                                        <div key={ex.id} className="p-4 bg-green-50 rounded-xl border border-green-100 shadow-sm">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold text-green-700">{ex.content}</span>
+                                                <span className="text-xs text-gray-400">{new Date(ex.createdAt).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-sm text-green-600 mt-1">時長/強度：{ex.duration}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Bottom Navigation */}
+                    <nav className="flex border-t bg-white p-3 pb-8 justify-around items-center text-gray-400">
+                        <button onClick={() => setActiveTab('dashboard')} className={activeTab==='dashboard'?'text-blue-600':''}><Icon name="layout-dashboard" /></button>
+                        <button onClick={() => setActiveTab('health')} className={activeTab==='health'?'text-blue-600':''}><Icon name="activity" /></button>
+                        
+                        <button 
+                            onClick={startVoiceInput} 
+                            className={`p-4 bg-blue-600 text-white rounded-full -translate-y-6 shadow-xl transition-all ${isListening ? 'mic-active' : ''}`}
+                        >
+                            <Icon name={isListening ? "mic" : "plus"} className="w-6 h-6" />
+                        </button>
+
+                        <button className="hover:text-blue-500"><Icon name="book" /></button>
+                        <button className="hover:text-blue-500"><Icon name="brain-circuit" /></button>
+                    </nav>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
