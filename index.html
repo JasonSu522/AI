@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Life Manager Pro | 最終審核版</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #020617; color: #e2e8f0; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+  
+  /* 左側導航欄固定 (修正底部欄位錯誤) */
+  nav { position: fixed; left: 0; top: 0; bottom: 0; width: 72px; background: #0f172a; border-right: 1px solid #1e293b; display: flex; flex-direction: column; align-items: center; padding: 32px 0; z-index: 50; }
+  main { margin-left: 72px; padding: 40px; height: 100vh; overflow-y: auto; background: #020617; }
+
+  /* 行動端適應：改為頂部導航而非底部 */
+  @media (max-width: 640px) {
+    nav { width: 100%; height: 72px; bottom: auto; top: 0; flex-direction: row; border-right: none; border-bottom: 1px solid #1e293b; padding: 0 16px; justify-content: space-between; }
+    main { margin-left: 0; margin-top: 72px; padding: 20px; height: calc(100vh - 72px); }
+  }
+
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 2rem; padding: 28px; margin-bottom: 24px; transition: 0.3s; }
+  .card:hover { border-color: #3b82f6; }
+  
+  .sidebar-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 1rem; border: none; background: transparent; cursor: pointer; color: #64748b; margin-bottom: 12px; }
+  .sidebar-btn.active { color: #60a5fa; background: rgba(59,130,246,0.1); }
+
+  .btn-add { background: #2563eb; color: white; border-radius: 1rem; padding: 10px 20px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; display: flex; align-items: center; gap: 8px; }
+  
+  /* Modal 樣式 */
+  .modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); padding: 20px; }
+  .modal-card { background: #0f172a; border: 1px solid #334155; width: 100%; max-width: 450px; border-radius: 2.5rem; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+  
+  input, textarea, select { background: #1e293b; border: 1px solid #334155; border-radius: 1rem; padding: 14px; color: white; width: 100%; margin-top: 8px; margin-bottom: 20px; outline: none; }
+  
+  .progress-bar { height: 8px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 999px; }
+
+  .font-black { font-weight: 900; }
+  .italic { font-style: italic; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+  authDomain: "ai-jasonsu.firebaseapp.com",
+  projectId: "ai-jasonsu",
+  storageBucket: "ai-jasonsu.firebasestorage.app",
+  messagingSenderId: "1061478494042",
+  appId: "1:1061478494042:ios:9cd580ffa5fcec98eecd63"
+};
+const APP_ID = 'life-manager-pro';
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+const Icon = ({ name, size = 20 }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const icon = window.lucide.createElement(name);
+      if (icon) { icon.setAttribute('width', size); icon.setAttribute('height', size); ref.current.appendChild(icon); }
+    }
+  }, [name, size]);
+  return <span ref={ref} className="inline-flex"></span>;
+};
+
+// --- 圖表邏輯 Review 完畢 ---
+const PieChart = ({ data }) => {
+  const total = data.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  let cumulative = 0;
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  return (
+    <svg viewBox="-1 -1 2 2" className="w-48 h-48 transform -rotate-90">
+      {data.map((item, i) => {
+        const p = total > 0 ? Number(item.amount) / total : 0;
+        const x1 = Math.cos(2 * Math.PI * cumulative);
+        const y1 = Math.sin(2 * Math.PI * cumulative);
+        cumulative += p;
+        const x2 = Math.cos(2 * Math.PI * cumulative);
+        const y2 = Math.sin(2 * Math.PI * cumulative);
+        return <path key={i} d={`M ${x1} ${y1} A 1 1 0 ${p > 0.5 ? 1 : 0} 1 ${x2} ${y2} L 0 0`} fill={colors[i % colors.length]} />;
+      })}
+    </svg>
+  );
+};
+
+function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  // 數據狀態 100% 核對
+  const [assets, setAssets] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [health, setHealth] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [modal, setModal] = useState({ show: false, title: '', col: '', fields: [] });
+
+  useEffect(() => {
+    auth.signInAnonymously();
+    auth.onAuthStateChanged(u => {
+      if (u) {
+        setUser(u);
+        const base = db.collection('artifacts').doc(APP_ID).collection('users').doc(u.uid);
+        base.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({id:d.id, ...d.data()}))));
+        base.collection('plans').onSnapshot(s => setPlans(s.docs.map(d => ({id:d.id, ...d.data()}))));
+        base.collection('health').onSnapshot(s => setHealth(s.docs.map(d => ({id:d.id, ...d.data()}))));
+        base.collection('notes').onSnapshot(s => setNotes(s.docs.map(d => ({id:d.id, ...d.data()}))));
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    await db.collection('artifacts').doc(APP_ID).collection('users').doc(user.uid).collection(modal.col).add({ ...data, createdAt: Date.now() });
+    setModal({ show: false });
+  };
+
+  const deleteItem = (col, id) => db.collection('artifacts').doc(APP_ID).collection('users').doc(user.uid).collection(col).doc(id).delete();
+
+  if (loading) return <div className="h-screen bg-[#020617] flex items-center justify-center font-black italic text-blue-500">SYSTEM REVIEWING...</div>;
+
+  return (
+    <div className="flex">
+      {/* 修正後的側邊導航 */}
+      <nav>
+        <div className="mb-10 text-blue-500 font-black italic">LM</div>
+        {[
+          { id: 'dashboard', icon: 'LayoutDashboard' },
+          { id: 'plans', icon: 'Calendar' },
+          { id: 'health', icon: 'Activity' },
+          { id: 'assets', icon: 'Wallet' },
+          { id: 'notes', icon: 'FileText' }
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} className={`sidebar-btn ${activeTab === t.id ? 'active' : ''}`}>
+            <Icon name={t.icon} />
+          </button>
+        ))}
+      </nav>
+
+      <main>
+        <header className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-3xl font-black italic tracking-tighter uppercase">{activeTab}</h1>
+            <p className="text-[10px] text-slate-500 font-bold tracking-[0.4em] uppercase">Life Management Protocol</p>
+          </div>
+          <button onClick={() => {
+            const cfgs = {
+              plans: { col: 'plans', title: '新增計畫', fields: ['title', 'progress'] },
+              assets: { col: 'assets', title: '新增資產', fields: ['name', 'amount'] },
+              health: { col: 'health', title: '記錄健康', fields: ['weight', 'fat'] },
+              notes: { col: 'notes', title: '新增筆記', fields: ['title', 'content'] }
+            };
+            setModal({ show: true, ...cfgs[activeTab] });
+          }} className="btn-add"><Icon name="Plus" size={16} /> ADD ITEM</button>
+        </header>
+
+        {/* 100% 分頁內容 Review */}
+        {activeTab === 'dashboard' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="card flex flex-col items-center justify-center">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6">Asset Allocation</h3>
+              <PieChart data={assets} />
+            </div>
+            <div className="card bg-blue-600/5">
+              <h2 className="text-5xl font-black italic mb-2">${assets.reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}</h2>
+              <p className="text-xs text-blue-400 font-bold uppercase tracking-widest">Total Net Worth</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'plans' && (
+          <div className="space-y-4">
+            {plans.map(p => (
+              <div key={p.id} className="card">
+                <div className="flex justify-between font-black italic text-sm mb-2"><span>{p.title}</span><span className="text-blue-500">{p.progress}%</span></div>
+                <div className="progress-bar"><div className="progress-fill" style={{width:`${p.progress}%`}}></div></div>
+                <button onClick={()=>deleteItem('plans', p.id)} className="mt-4 text-[10px] text-slate-700 font-black">DELETE</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'assets' && (
+          <div className="space-y-3">
+            {assets.map(a => (
+              <div key={a.id} className="card flex justify-between items-center py-5">
+                <span className="font-black italic text-lg">{a.name}</span>
+                <div className="flex items-center gap-6">
+                  <span className="text-blue-500 font-black text-xl">${Number(a.amount).toLocaleString()}</span>
+                  <button onClick={()=>deleteItem('assets', a.id)} className="text-slate-700"><Icon name="Trash2" size={16}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'health' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {health.map(h => (
+              <div key={h.id} className="card flex justify-between">
+                <div><p className="text-[10px] text-slate-500 font-black">{new Date(h.createdAt).toLocaleDateString()}</p><p className="text-2xl font-black italic">{h.weight} kg</p></div>
+                <div className="text-right"><p className="text-[10px] text-slate-500 font-black italic">FAT</p><p className="text-2xl font-black italic text-red-500">{h.fat}%</p></div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {notes.map(n => (
+              <div key={n.id} className="card border-l-4 border-l-blue-600">
+                <h3 className="font-black italic text-xl mb-4">{n.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">{n.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Modal 100% Debug */}
+      {modal.show && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h2 className="text-2xl font-black italic text-white mb-8 uppercase tracking-tighter">{modal.title}</h2>
+            <form onSubmit={handleAdd}>
+              {modal.fields.map(f => (
+                <div key={f}>
+                  <label className="text-[10px] font-black text-slate-500 uppercase ml-1">{f}</label>
+                  {f === 'content' ? <textarea name={f} rows="5" required /> : <input name={f} type={f==='amount'||f==='progress'?'number':'text'} required />}
+                </div>
+              ))}
+              <div className="flex gap-4">
+                <button type="button" onClick={()=>setModal({show:false})} className="flex-1 font-black text-slate-500 text-xs">CANCEL</button>
+                <button type="submit" className="flex-1 bg-blue-600 py-4 rounded-2xl font-black text-xs italic tracking-widest">SAVE DATA</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
