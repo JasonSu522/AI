@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人生管理 | Life Manager Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #020617; color: #e2e8f0; font-family: ui-sans-serif, system-ui, sans-serif; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+  .rounded-3xl { border-radius: 1.5rem; }
+  .rounded-2xl { border-radius: 1rem; }
+  .italic { font-style: italic; }
+  .tracking-widest { letter-spacing: 0.1em; }
+  .tracking-tighter { letter-spacing: -0.05em; }
+  .drop-shadow-2xl { filter: drop-shadow(0 25px 25px rgba(0,0,0,0.15)); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+  .group:hover .group-hover\:opacity-100 { opacity: 1; }
+  .group-hover\:opacity-100 { opacity: 0; transition: opacity 0.2s; }
+  .progress-bar { height: 6px; background: #1e293b; border-radius: 9999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #3b82f6; border-radius: 9999px; transition: width 0.4s; }
+  nav { position: fixed; left: 0; top: 0; bottom: 0; width: 64px; background: #0f172a; border-right: 1px solid #1e293b; display: flex; flex-direction: column; align-items: center; padding: 24px 0; z-index: 40; }
+  main { margin-left: 64px; padding: 32px; max-width: calc(100vw - 64px); overflow-y: auto; height: 100vh; }
+  @media (max-width: 640px) {
+    nav { width: 100%; height: 60px; top: auto; bottom: 0; flex-direction: row; border-right: none; border-top: 1px solid #1e293b; padding: 0; justify-content: space-around; }
+    main { margin-left: 0; margin-bottom: 60px; height: calc(100vh - 60px); }
+  }
+  .modal-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+  .modal-card { position: relative; background: #0f172a; border: 1px solid #1e293b; width: 100%; max-width: 448px; border-radius: 2.5rem; padding: 40px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+  input, textarea, select { background: #1e293b; border: 1px solid #334155; border-radius: 1rem; padding: 16px 20px; font-size: 14px; color: #e2e8f0; width: 100%; outline: none; transition: border-color 0.2s; }
+  input:focus, textarea:focus { border-color: #3b82f6; }
+  textarea { height: 128px; resize: vertical; }
+  .btn-primary { background: #2563eb; color: white; border: none; border-radius: 1rem; padding: 16px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3em; cursor: pointer; width: 100%; transition: background 0.2s; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-icon { background: #2563eb; border: none; border-radius: 0.75rem; padding: 8px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; }
+  .btn-icon.emerald { background: #059669; }
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 1.5rem; padding: 24px; }
+  .asset-row { padding: 16px; background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .sidebar-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 56px; border: none; background: transparent; cursor: pointer; transition: all 0.2s; color: #64748b; }
+  .sidebar-btn.active { color: #60a5fa; background: rgba(59,130,246,0.1); border-right: 2px solid #3b82f6; }
+  .sidebar-btn:hover:not(.active) { color: #cbd5e1; }
+  .note-card { background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; overflow: hidden; margin-bottom: 12px; }
+  .note-header { width: 100%; padding: 16px; text-align: left; display: flex; justify-content: space-between; align-items: center; background: transparent; border: none; color: #e2e8f0; cursor: pointer; font-weight: 900; font-style: italic; font-size: 12px; }
+  .note-body { padding: 20px; background: rgba(2,6,23,0.4); border-top: 1px solid rgba(30,41,59,0.5); font-size: 11px; color: #94a3b8; line-height: 1.6; }
+  .drag-item { padding: 16px; background: rgba(30,41,59,0.2); border: 1px solid #1e293b; border-radius: 1rem; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; transition: opacity 0.2s; }
+  .drag-item.dragging { opacity: 0.2; }
+  .loading-screen { min-height: 100vh; background: #020617; display: flex; align-items: center; justify-content: center; color: #3b82f6; font-weight: 900; letter-spacing: 0.2em; font-size: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-asset { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
+  @media (max-width: 900px) { .grid-2, .grid-asset { grid-template-columns: 1fr; } }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// Firebase Config - embedded
+const firebaseConfig = {
+  apiKey: "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28",
+  authDomain: "life-manager-pro.firebaseapp.com",
+  projectId: "life-manager-pro",
+  storageBucket: "life-manager-pro.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:0000000000000000000000"
+};
+
+const GEMINI_API_KEY = "AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28";
+const APP_ID = 'life-manager-pro';
+
+// Initialize Firebase
+let app, auth, db;
+try {
+  app = firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  db.enablePersistence().catch(err => console.warn('Persistence:', err.code));
+} catch(e) {
+  console.error('Firebase init error:', e);
+}
+
+// ---- Icons (using lucide via CDN) ----
+const Icon = ({ name, size = 18, className = "" }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const icon = window.lucide.createElement(name);
+      if (icon) {
+        icon.setAttribute('width', size);
+        icon.setAttribute('height', size);
+        if (className) icon.setAttribute('class', className);
+        ref.current.appendChild(icon);
+      }
+    }
+  }, [name, size, className]);
+  return <span ref={ref} style={{display:'inline-flex',alignItems:'center'}}></span>;
+};
+
+// ---- RadarChart ----
+const RadarChart = ({ data }) => {
+  const keys = ["wealth", "health", "growth", "discipline", "experience"];
+  const labels = ["財務", "健康", "成長", "自律", "體驗"];
+  const size = 200, center = 100, radius = 65;
+  const getCoord = (idx, value) => {
+    const angle = (Math.PI * 2 * idx) / keys.length - Math.PI / 2;
+    const r = (radius * value) / 100;
+    return [center + r * Math.cos(angle), center + r * Math.sin(angle)];
+  };
+  const points = keys.map((key, i) => getCoord(i, data[key] || 50).join(',')).join(' ');
+  const bgLevels = [25, 50, 75, 100].map(v => keys.map((_, i) => getCoord(i, v).join(',')).join(' '));
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{width:'100%',maxWidth:'220px',filter:'drop-shadow(0 25px 25px rgba(0,0,0,0.3))'}}>
+      {bgLevels.map((pts, i) => <polygon key={i} points={pts} fill="none" stroke="#1e293b" strokeWidth="0.5" />)}
+      {keys.map((_, i) => { const [x, y] = getCoord(i, 100); return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke="#1e293b" strokeWidth="0.5" />; })}
+      <polygon points={points} fill="rgba(59,130,246,0.25)" stroke="#3b82f6" strokeWidth="2" strokeLinejoin="round" />
+      {labels.map((l, i) => { const [x, y] = getCoord(i, 115); return <text key={i} x={x} y={y} fill="#64748b" fontSize="10" fontWeight="900" textAnchor="middle" dominantBaseline="middle">{l}</text>; })}
+    </svg>
+  );
+};
+
+// ---- PieChart ----
+const PieChartAsset = ({ data }) => {
+  const total = data.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  let cumulativePercent = 0;
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const getCoord = (percent) => [Math.cos(2 * Math.PI * percent), Math.sin(2 * Math.PI * percent)];
+  return (
+    <div style={{position:'relative',width:'100%',maxWidth:'260px',margin:'0 auto',aspectRatio:'1'}}>
+      <svg viewBox="-1.2 -1.2 2.4 2.4" style={{transform:'rotate(-90deg)',width:'100%',height:'100%',overflow:'visible'}}>
+        {data.map((item, i) => {
+          const percent = total > 0 ? Number(item.amount) / total : 0;
+          if (percent <= 0) return null;
+          const startPercent = cumulativePercent;
+          const [startX, startY] = getCoord(startPercent);
+          cumulativePercent += percent;
+          const [endX, endY] = getCoord(cumulativePercent);
+          const midPercent = startPercent + percent / 2;
+          const [midX, midY] = getCoord(midPercent);
+          const largeArcFlag = percent > 0.5 ? 1 : 0;
+          const pathData = `M ${startX} ${startY} A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY} L 0 0`;
+          return (
+            <g key={i}>
+              <path d={pathData} fill={colors[i % colors.length]} stroke="#020617" strokeWidth="0.02" />
+              {percent > 0.05 && (
+                <text x={midX * 0.72} y={midY * 0.72} fill="white" fontSize="0.13" fontWeight="900" textAnchor="middle" dominantBaseline="middle" transform={`rotate(90,${midX*0.72},${midY*0.72})`} style={{pointerEvents:'none'}}>
+                  {item.name} {Math.round(percent*100)}%
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ---- HealthChart ----
+const MultiHealthChart = ({ data }) => {
+  if (data.length < 2) return <div style={{height:192,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'#475569',fontStyle:'italic'}}>數據不足，無法繪製整合圖表</div>;
+  const width = 400, height = 180, padding = 20;
+  const getPoints = (key) => {
+    const values = data.map(d => Number(d[key])).filter(v => !isNaN(v));
+    if (!values.length) return [];
+    const min = Math.min(...values), max = Math.max(...values), range = max === min ? 1 : max - min;
+    return data.map((d, i) => ({
+      x: padding + (i / (data.length - 1)) * (width - 2 * padding),
+      y: (height - padding) - ((Number(d[key]) - min) / range) * (height - 2 * padding)
+    }));
+  };
+  const colors = ["#3b82f6","#ef4444","#10b981"];
+  const keys = ['weight','fat','muscle'];
+  return (
+    <div style={{marginTop:16,background:'rgba(2,6,23,0.3)',padding:16,borderRadius:12,border:'1px solid rgba(30,41,59,0.5)'}}>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{width:'100%',height:160,overflow:'visible'}}>
+        {keys.map((key, idx) => {
+          const pts = getPoints(key);
+          if (!pts.length) return null;
+          return (
+            <g key={key}>
+              <polyline fill="none" stroke={colors[idx]} strokeWidth="2" points={pts.map(p=>`${p.x},${p.y}`).join(' ')} />
+              {pts.map((p,i) => <circle key={i} cx={p.x} cy={p.y} r="3" fill={colors[idx]} />)}
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{display:'flex',gap:16,justifyContent:'center',marginTop:8}}>
+        {keys.map((k,i) => <span key={k} style={{fontSize:10,color:colors[i],fontWeight:900}}>● {k === 'weight' ? '體重' : k === 'fat' ? '體脂' : '肌肉'}</span>)}
+      </div>
+    </div>
+  );
+};
+
+// ---- SortableList ----
+const SortableList = ({ title, items, col, onSort, onAdd, onDelete, onUpdateProgress }) => {
+  const [dragIdx, setDragIdx] = useState(null);
+  return (
+    <div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <h3 style={{fontWeight:900,fontStyle:'italic',textTransform:'uppercase',fontSize:13,color:'#94a3b8',letterSpacing:'0.1em',margin:0}}>{title}</h3>
+        <button className="btn-icon" onClick={onAdd}><Icon name="Plus" size={18} /></button>
+      </div>
+      <div>
+        {items.map((item, idx) => (
+          <div key={item.id} draggable
+            onDragStart={() => setDragIdx(idx)}
+            onDragOver={e => e.preventDefault()}
+            onDrop={() => { if (dragIdx !== null && dragIdx !== idx) onSort(col, items, dragIdx, idx); setDragIdx(null); }}
+            className={`drag-item group ${dragIdx === idx ? 'dragging' : ''}`}>
+            <span style={{color:'#334155',cursor:'grab',flexShrink:0}}><Icon name="GripVertical" size={16} /></span>
+            <div style={{flex:1}}>
+              <p style={{fontSize:12,fontWeight:900,fontStyle:'italic',color:'#e2e8f0',margin:0}}>{item.title}</p>
+            </div>
+            {onUpdateProgress && (
+              <input type="number" defaultValue={item.progress || 0}
+                onBlur={e => onUpdateProgress(item.id, e.target.value)}
+                style={{width:48,textAlign:'center',fontSize:10,fontWeight:900,color:'#60a5fa',padding:4,background:'#020617',border:'1px solid #334155',borderRadius:8}} />
+            )}
+            <button onClick={() => onDelete(item.id)} style={{color:'#334155',background:'none',border:'none',cursor:'pointer',padding:4}} onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#334155'}>
+              <Icon name="Trash2" size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ---- Modal ----
+const Modal = ({ modal, onClose, onSubmit }) => {
+  if (!modal.show) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-backdrop" onClick={onClose}></div>
+      <div className="modal-card">
+        <h3 style={{fontWeight:900,color:'white',fontStyle:'italic',marginBottom:32,fontSize:20,textTransform:'uppercase',letterSpacing:'-0.05em'}}>{modal.title}</h3>
+        <form onSubmit={onSubmit} style={{display:'flex',flexDirection:'column',gap:24}}>
+          {modal.fields.map(f => (
+            <div key={f.name}>
+              <label style={{display:'block',fontSize:10,fontWeight:900,color:'#64748b',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.2em'}}>{f.label}</label>
+              {f.type === 'textarea'
+                ? <textarea name={f.name} defaultValue={modal.initialData?.[f.name] || ''} required></textarea>
+
+```
+            : <input name={f.name} type={f.type} step="any" defaultValue={modal.initialData?.[f.name] || ''} required />
+          }
+        </div>
+      ))}
+      <button type="submit" className="btn-primary">確認送出</button>
+    </form>
+  </div>
+</div>
+```
+
+);
+};
+
+// –– Main App ––
+export default function App() {
+const [user, setUser] = useState(null);
+const [activeTab, setActiveTab] = useState(‘dashboard’);
+const [loading, setLoading] = useState(true);
+const [modal, setModal] = useState({ show: false, type: ‘add’, title: ‘’, fields: [], col: ‘’, id: null, initialData: {} });
+const [expandedNote, setExpandedNote] = useState(null);
+
+const [aiSummary, setAiSummary] = useState(’’);
+const [isAiLoading, setIsAiLoading] = useState(false);
+const [radarData, setRadarData] = useState({ wealth: 50, health: 50, growth: 50, discipline: 50, experience: 50 });
+const [assetAdvice, setAssetAdvice] = useState(’’);
+const [isListening, setIsListening] = useState(false);
+
+const [emergencyFund, setEmergencyFund] = useState(0);
+const [plans, setPlans] = useState({ yearly: [], daily: [] });
+const [health, setHealth] = useState({ logs: [], medical: [], exercise: [] });
+const [assets, setAssets] = useState([]);
+const [notes, setNotes] = useState({ life: [], book: [], trading: [], web: [] });
+const [travel, setTravel] = useState([]);
+
+useEffect(() => {
+auth.signInAnonymously().catch(console.error);
+const unsub = auth.onAuthStateChanged(setUser);
+return () => unsub();
+}, []);
+
+const initializeAssets = async (uid) => {
+const assetCol = db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(uid).collection(‘assets’);
+const snapshot = await assetCol.get();
+if (snapshot.empty) {
+const initialAssets = [
+{ name: “台股”, amount: 2544261, category: “台股” },
+{ name: “美股”, amount: 829175, category: “美股” },
+{ name: “台新外幣(活)-USD”, amount: 4257, category: “美股” },
+{ name: “台新外幣(活)-JPY”, amount: 6006, category: “現金” },
+{ name: “台新外幣(定)-USD”, amount: 75473, category: “美股” },
+{ name: “合庫(活存)”, amount: 1357878, category: “現金” },
+{ name: “台新(活存)”, amount: 57170, category: “現金” },
+{ name: “彰銀(活存)”, amount: 457003, category: “現金” },
+{ name: “兆豐(備用金)”, amount: 43314, category: “現金” },
+{ name: “黃金(2.2盎司)”, amount: 357357, category: “黃金” },
+{ name: “台幣現金”, amount: 20000, category: “現金” },
+{ name: “借志”, amount: 300000, category: “借款” }
+];
+for (const a of initialAssets) {
+await assetCol.add({ …a, createdAt: Date.now() });
+}
+}
+};
+
+useEffect(() => {
+if (!user) return;
+initializeAssets(user.uid);
+const base = db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid);
+const configRef = base.collection(‘config’).doc(‘emergency’);
+
+```
+const unsubs = [
+  base.collection('plans_yearly').onSnapshot(s => setPlans(p => ({ ...p, yearly: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order||0)-(b.order||0)) }))),
+  base.collection('plans_daily').onSnapshot(s => setPlans(p => ({ ...p, daily: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order||0)-(b.order||0)) }))),
+  base.collection('health_logs').onSnapshot(s => setHealth(h => ({ ...h, logs: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => a.createdAt-b.createdAt) }))),
+  base.collection('health_exercise').onSnapshot(s => setHealth(h => ({ ...h, exercise: s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.createdAt-a.createdAt) }))),
+  base.collection('health_medical').onSnapshot(s => setHealth(h => ({ ...h, medical: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+  base.collection('assets').onSnapshot(s => setAssets(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+  base.collection('notes_life').onSnapshot(s => setNotes(n => ({ ...n, life: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+  base.collection('notes_book').onSnapshot(s => setNotes(n => ({ ...n, book: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+  base.collection('notes_trading').onSnapshot(s => setNotes(n => ({ ...n, trading: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+  base.collection('notes_web').onSnapshot(s => setNotes(n => ({ ...n, web: s.docs.map(d => ({ id: d.id, ...d.data() })) }))),
+  base.collection('travel').onSnapshot(s => setTravel(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+  configRef.onSnapshot(s => setEmergencyFund(s.data()?.value || 0)),
+];
+setLoading(false);
+return () => unsubs.forEach(u => u());
+```
+
+}, [user]);
+
+const categorizedAssets = useMemo(() => {
+const categories = { “台股”: 0, “美股”: 0, “現金”: 0, “黃金”: 0, “借款”: 0 };
+assets.forEach(a => {
+const amt = Number(a.amount) || 0;
+const cat = a.category || “現金”;
+if (categories.hasOwnProperty(cat)) categories[cat] += amt;
+else categories[“現金”] += amt;
+});
+return Object.entries(categories).map(([name, amount]) => ({ name, amount }));
+}, [assets]);
+
+const totalAssetValue = useMemo(() => categorizedAssets.reduce((a, b) => a + b.amount, 0), [categorizedAssets]);
+
+const callGeminiAI = async (prompt, isJson = false) => {
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const payload = { contents: [{ parts: [{ text: prompt }] }], …(isJson && { generationConfig: { responseMimeType: “application/json” } }) };
+const fetchWithRetry = async (retries = 0) => {
+try {
+const res = await fetch(url, { method: ‘POST’, headers: { ‘Content-Type’: ‘application/json’ }, body: JSON.stringify(payload) });
+const result = await res.json();
+return result.candidates?.[0]?.content?.parts?.[0]?.text;
+} catch (err) {
+if (retries < 3) { await new Promise(r => setTimeout(r, Math.pow(2, retries) * 1000)); return fetchWithRetry(retries+1); }
+throw err;
+}
+};
+return fetchWithRetry();
+};
+
+const generateFullAiAnalysis = async () => {
+if (isAiLoading) return;
+setIsAiLoading(true);
+const context = `資產：${totalAssetValue}元, 分配:${JSON.stringify(categorizedAssets)}`;
+const radarPrompt = `請分析我的數據，並針對以下五個維度給出 0-100 的評分：財務(Wealth)、健康(Health)、自我成長(Growth)、執行力(Discipline)、生活體驗(Experience)。請僅回傳 JSON 格式：{"wealth": 80, "health": 60, "growth": 70, "discipline": 50, "experience": 90}。數據參考：${context}`;
+const advicePrompt = `基於以下數據：${context}，請提供精簡的人生成長與理財建議（繁體中文，150字內）。`;
+try {
+const [radarJson, adviceText] = await Promise.all([callGeminiAI(radarPrompt, true), callGeminiAI(advicePrompt)]);
+if (radarJson) { try { setRadarData(JSON.parse(radarJson)); } catch(e){} }
+if (adviceText) setAiSummary(adviceText);
+} catch (err) {
+setAiSummary(“AI 分析暫時發生錯誤，請稍後再試。”);
+} finally { setIsAiLoading(false); }
+};
+
+const getAssetAdvice = async () => {
+setIsAiLoading(true);
+const prompt = `請分析我的資產配置：${JSON.stringify(categorizedAssets)}。請針對資產比例與持股配置給出具體的優化建議（繁體中文，100字內）。`;
+try { const advice = await callGeminiAI(prompt); setAssetAdvice(advice); }
+finally { setIsAiLoading(false); }
+};
+
+const onDragEnd = async (col, items, dragIdx, hoverIdx) => {
+const newItems = […items];
+const [removed] = newItems.splice(dragIdx, 1);
+newItems.splice(hoverIdx, 0, removed);
+if (col === ‘plans_yearly’) setPlans(p => ({ …p, yearly: newItems }));
+else setPlans(p => ({ …p, daily: newItems }));
+const batch = db.batch();
+newItems.forEach((item, index) => {
+const ref = db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid).collection(col).doc(item.id);
+batch.update(ref, { order: index });
+});
+await batch.commit();
+};
+
+const handleVoiceInput = () => {
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) { alert(‘您的瀏覽器不支援語音輸入’); return; }
+const rec = new SR();
+rec.lang = ‘zh-TW’;
+rec.start();
+setIsListening(true);
+rec.onresult = async (event) => {
+const transcript = event.results[0][0].transcript;
+setIsListening(false);
+const parsePrompt = `將此語句解析並歸類。若包含健康數據（體重、體脂、肌肉），歸類為 health_logs。若包含運動內容，歸類為 health_exercise。語句：「${transcript}」。請回傳 JSON 格式：{"type": "health_logs" | "health_exercise", "data": {相關欄位}}。`;
+try {
+const resultJson = await callGeminiAI(parsePrompt, true);
+if (resultJson) {
+const parsed = JSON.parse(resultJson);
+await db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid).collection(parsed.type).add({ …parsed.data, createdAt: Date.now() });
+}
+} catch(e) { console.error(“Voice parse failed”, e); }
+};
+rec.onerror = () => setIsListening(false);
+};
+
+const handleModalSubmit = async (e) => {
+e.preventDefault();
+const formData = new FormData(e.target);
+const data = Object.fromEntries(formData.entries());
+const base = db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid);
+if (modal.col === ‘emergency_fund’) {
+await base.collection(‘config’).doc(‘emergency’).set({ value: Number(data.value) });
+} else if (modal.type === ‘edit’) {
+await base.collection(modal.col).doc(modal.id).update(data);
+} else {
+await base.collection(modal.col).add({ …data, createdAt: Date.now(), order: 999 });
+}
+setModal({ …modal, show: false });
+};
+
+const deleteDoc = async (col, id) => {
+await db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid).collection(col).doc(id).delete();
+};
+
+const updateDoc = async (col, id, data) => {
+await db.collection(‘artifacts’).doc(APP_ID).collection(‘users’).doc(user.uid).collection(col).doc(id).update(data);
+};
+
+if (loading && !user) return <div className="loading-screen">SYSTEM INITIALIZING…</div>;
+
+const tabs = [
+{ id: ‘dashboard’, icon: ‘LayoutDashboard’, label: ‘總覽’ },
+{ id: ‘plans’, icon: ‘Calendar’, label: ‘計畫’ },
+{ id: ‘health’, icon: ‘Heart’, label: ‘健康’ },
+{ id: ‘assets’, icon: ‘PieChart’, label: ‘資產’ },
+{ id: ‘notes’, icon: ‘BookOpen’, label: ‘筆記’ },
+{ id: ‘travel’, icon: ‘Map’, label: ‘旅遊’ },
+];
+
+return (
+<div style={{display:‘flex’,minHeight:‘100vh’,background:’#020617’,color:’#e2e8f0’}}>
+{/* Sidebar */}
+<nav>
+<div style={{marginBottom:32,color:’#3b82f6’}}><Icon name="BrainCircuit" size={24} /></div>
+{tabs.map(t => (
+<button key={t.id} className={`sidebar-btn ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
+<Icon name={t.icon} size={18} />
+<span style={{fontSize:9,marginTop:4,fontWeight:900,textTransform:‘uppercase’,letterSpacing:‘0.1em’}}>{t.label}</span>
+</button>
+))}
+<button onClick={handleVoiceInput}
+style={{marginTop:‘auto’,marginBottom:16,padding:12,borderRadius:‘50%’,border:‘none’,cursor:‘pointer’,background:isListening?’#ef4444’:’#1e293b’,color:isListening?‘white’:’#94a3b8’,animation:isListening?‘pulse 2s infinite’:’’}}
+>
+<Icon name="Mic" size={20} />
+</button>
+</nav>
+
+```
+  {/* Main */}
+  <main>
+    <header style={{marginBottom:32,display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+      <div>
+        <h1 style={{fontSize:24,fontWeight:900,color:'white',fontStyle:'italic',textTransform:'uppercase',letterSpacing:'-0.05em',margin:0}}>人生管理</h1>
+        <p style={{color:'#64748b',fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',margin:'4px 0 0'}}>Efficiency & Vision</p>
+      </div>
+    </header>
+
+    {/* Dashboard */}
+    {activeTab === 'dashboard' && (
+      <div style={{display:'flex',flexDirection:'column',gap:24}}>
+        <div className="grid-2">
+          <div className="card" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+            <p style={{fontSize:10,fontWeight:900,fontStyle:'italic',color:'#60a5fa',textTransform:'uppercase',letterSpacing:'0.2em',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+              <Icon name="Activity" size={14} /> 人生雷達圖 (Life Matrix)
+            </p>
+            <RadarChart data={radarData} />
+          </div>
+          <div style={{background:'linear-gradient(135deg,rgba(30,58,138,0.2),#0f172a)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:'1.5rem',padding:24,display:'flex',flexDirection:'column'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <h3 style={{fontSize:12,fontWeight:900,fontStyle:'italic',color:'#60a5fa',textTransform:'uppercase',letterSpacing:'0.1em',margin:0,display:'flex',alignItems:'center',gap:8}}>
+                <Icon name="Sparkles" size={16} /> AI 生命數據分析
+              </h3>
+              <button onClick={generateFullAiAnalysis} disabled={isAiLoading}
+                style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:10,fontWeight:900,padding:'8px 16px',borderRadius:12,border:'1px solid rgba(59,130,246,0.3)',cursor:'pointer'}}>
+                {isAiLoading ? "運算中..." : "重新產生"}
+              </button>
+            </div>
+            <div style={{fontSize:12,color:'#cbd5e1',lineHeight:1.6,flex:1,minHeight:100,whiteSpace:'pre-wrap'}}>
+              {aiSummary || "點擊按鈕獲取本週 AI 專屬分析與人生雷達評分建議..."}
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{padding:20}}>
+          <h3 style={{fontSize:12,fontWeight:900,marginBottom:16,display:'flex',alignItems:'center',gap:8,textTransform:'uppercase',letterSpacing:'0.1em',color:'#94a3b8',margin:'0 0 16px'}}>
+            <Icon name="Calendar" size={14} /> 年度目標進度
+          </h3>
+          {plans.yearly.slice(0,5).map(p => (
+            <div key={p.id} style={{marginBottom:16}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,fontWeight:700,fontStyle:'italic',marginBottom:4}}>
+                <span>{p.title}</span><span>{p.progress || 0}%</span>
+              </div>
+              <div className="progress-bar"><div className="progress-fill" style={{width:`${p.progress||0}%`}}></div></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{borderRadius:'2rem',padding:32,textAlign:'center'}}>
+          <p style={{color:'#64748b',fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',marginBottom:4}}>總資產市值 (淨值)</p>
+          <h2 style={{fontSize:36,fontWeight:900,color:'white',fontStyle:'italic',marginBottom:24}}>${totalAssetValue.toLocaleString()}</h2>
+          <PieChartAsset data={categorizedAssets} />
+          <div style={{marginTop:32,paddingTop:24,borderTop:'1px solid #1e293b',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <p style={{color:'#64748b',fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',margin:0}}>緊急預備金</p>
+              <p style={{fontSize:20,fontWeight:900,color:'#60a5fa',fontStyle:'italic',margin:'4px 0 0'}}>${Number(emergencyFund).toLocaleString()}</p>
+            </div>
+            <button onClick={() => setModal({ show: true, type: 'edit', title: '修改預備金', col: 'emergency_fund', fields: [{name:'value',label:'金額',type:'number'}], initialData: {value: emergencyFund} })}
+              style={{fontSize:10,fontWeight:900,color:'#94a3b8',background:'#1e293b',border:'none',padding:'8px 16px',borderRadius:12,cursor:'pointer'}}>修改金額</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Plans */}
+    {activeTab === 'plans' && (
+      <div style={{display:'flex',flexDirection:'column',gap:32}}>
+        <SortableList title="年度目標進度 (拖拽排序)" items={plans.yearly} col="plans_yearly" onSort={onDragEnd}
+          onAdd={() => setModal({ show:true,type:'add',title:'新增計畫',col:'plans_yearly',fields:[{name:'title',label:'目標名稱',type:'text'}],initialData:{} })}
+          onDelete={id => deleteDoc('plans_yearly', id)}
+          onUpdateProgress={(id,val) => updateDoc('plans_yearly',id,{progress:Math.min(100,Math.max(0,parseInt(val)||0))})} />
+        <SortableList title="每日任務管理 (拖拽排序)" items={plans.daily} col="plans_daily" onSort={onDragEnd}
+          onAdd={() => setModal({ show:true,type:'add',title:'新增每日任務',col:'plans_daily',fields:[{name:'title',label:'任務內容',type:'text'}],initialData:{} })}
+          onDelete={id => deleteDoc('plans_daily', id)} />
+      </div>
+    )}
+
+    {/* Health */}
+    {activeTab === 'health' && (
+      <div className="card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+          <h3 style={{fontWeight:900,fontStyle:'italic',textTransform:'uppercase',fontSize:13,color:'#94a3b8',margin:0}}>數據趨勢圖</h3>
+          <button className="btn-icon" onClick={() => setModal({ show:true,type:'add',title:'記錄今日數值',col:'health_logs',fields:[{name:'weight',label:'體重 (kg)',type:'number'},{name:'fat',label:'體脂 (%)',type:'number'},{name:'muscle',label:'肌肉量 (kg)',type:'number'}],initialData:{} })}>
+            <Icon name="Plus" size={18} />
+          </button>
+        </div>
+        <MultiHealthChart data={health.logs} />
+        <div style={{marginTop:24}}>
+          <h4 style={{fontSize:11,fontWeight:900,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>歷史記錄</h4>
+          {health.logs.slice().reverse().slice(0,10).map(l => (
+            <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',background:'rgba(30,41,59,0.2)',borderRadius:12,marginBottom:8,border:'1px solid #1e293b'}}>
+              <span style={{fontSize:10,color:'#64748b'}}>{new Date(l.createdAt).toLocaleDateString('zh-TW')}</span>
+              <div style={{display:'flex',gap:16}}>
+                {l.weight && <span style={{fontSize:11,color:'#3b82f6',fontWeight:900}}>體重:{l.weight}kg</span>}
+                {l.fat && <span style={{fontSize:11,color:'#ef4444',fontWeight:900}}>體脂:{l.fat}%</span>}
+                {l.muscle && <span style={{fontSize:11,color:'#10b981',fontWeight:900}}>肌肉:{l.muscle}kg</span>}
+              </div>
+              <button onClick={() => deleteDoc('health_logs', l.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#334155',padding:4}}
+                onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#334155'}>
+                <Icon name="Trash2" size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Assets */}
+    {activeTab === 'assets' && (
+      <div style={{display:'flex',flexDirection:'column',gap:24}}>
+        <div style={{background:'#0f172a',border:'1px solid rgba(16,185,129,0.3)',borderRadius:'1.5rem',padding:24}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+            <h3 style={{fontSize:12,fontWeight:900,color:'#34d399',textTransform:'uppercase',letterSpacing:'0.1em',margin:0,display:'flex',alignItems:'center',gap:8}}>
+              <Icon name="Info" size={14} /> AI 資產配置優化建議
+            </h3>
+            <button onClick={getAssetAdvice} disabled={isAiLoading}
+              style={{fontSize:10,fontWeight:900,background:'rgba(16,185,129,0.1)',color:'#34d399',border:'1px solid rgba(16,185,129,0.2)',padding:'8px 16px',borderRadius:12,cursor:'pointer'}}>
+              {isAiLoading ? "分析中..." : "開始分析"}
+            </button>
+          </div>
+          <p style={{fontSize:12,color:'#94a3b8',lineHeight:1.6,fontStyle:'italic',margin:0}}>
+            {assetAdvice || "點擊按鈕，讓 AI 根據您的資產類別與佔比，提供持股配置與風險分散建議。"}
+          </p>
+        </div>
+        <div className="grid-asset">
+          <div className="card" style={{textAlign:'center'}}>
+            <p style={{color:'#64748b',fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',margin:'0 0 4px'}}>總資產市值</p>
+            <h2 style={{fontSize:28,fontWeight:900,color:'white',fontStyle:'italic',marginBottom:24}}>${totalAssetValue.toLocaleString()}</h2>
+            <PieChartAsset data={categorizedAssets} />
+          </div>
+          <div className="card">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+              <h3 style={{fontWeight:900,fontStyle:'italic',textTransform:'uppercase',fontSize:13,color:'#94a3b8',margin:0}}>資產明細清單</h3>
+              <button className="btn-icon" onClick={() => setModal({ show:true,type:'add',title:'新增資產',col:'assets',fields:[{name:'name',label:'名稱',type:'text'},{name:'amount',label:'市值金額',type:'number'},{name:'category',label:'分類 (台股/美股/現金/黃金/借款)',type:'text'}],initialData:{} })}>
+                <Icon name="Plus" size={18} />
+              </button>
+            </div>
+            <div>
+              {assets.map(a => (
+                <div key={a.id} className="asset-row group">
+                  <div style={{flex:1,minWidth:0,paddingRight:16}}>
+                    <span style={{fontSize:12,fontWeight:900,color:'#e2e8f0',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:4}}>{a.name}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:9,color:'#64748b',fontWeight:900,textTransform:'uppercase'}}>{a.category}</span>
+                      <span style={{fontSize:13,fontWeight:900,color:'#60a5fa',fontStyle:'italic'}}>${Number(a.amount).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:8,flexShrink:0}}>
+                    <button onClick={() => setModal({ show:true,type:'edit',title:'編輯資產',col:'assets',id:a.id,fields:[{name:'name',label:'名稱',type:'text'},{name:'amount',label:'市值金額',type:'number'},{name:'category',label:'分類',type:'text'}],initialData:a })}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#334155',padding:4}} onMouseEnter={e=>e.currentTarget.style.color='#3b82f6'} onMouseLeave={e=>e.currentTarget.style.color='#334155'}>
+                      <Icon name="Edit3" size={14} />
+                    </button>
+                    <button onClick={() => deleteDoc('assets', a.id)}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#334155',padding:4}} onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#334155'}>
+                      <Icon name="Trash2" size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Notes */}
+    {activeTab === 'notes' && (
+      <div className="grid-2">
+        {[
+          { key: 'life', label: '人生成長' },
+          { key: 'book', label: '書籍重點' },
+          { key: 'trading', label: '台指交易' },
+          { key: 'web', label: '網路心得' },
+        ].map(({ key, label }) => (
+          <div key={key} className="card">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,textTransform:'uppercase',fontSize:10,fontWeight:900,letterSpacing:'0.2em',color:'#64748b'}}>
+              <span>{label}</span>
+              <button onClick={() => setModal({ show:true,type:'add',title:'新增筆記',col:`notes_${key}`,fields:[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}],initialData:{} })}
+                style={{background:'none',border:'none',cursor:'pointer',color:'#3b82f6'}}>
+                <Icon name="Plus" size={18} />
+              </button>
+            </div>
+            {notes[key]?.map(n => (
+              <div key={n.id} className="note-card">
+                <button className="note-header" onClick={() => setExpandedNote(expandedNote === n.id ? null : n.id)}>
+                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:16}}>{n.title}</span>
+                  <span style={{color: expandedNote===n.id?'#3b82f6':'#64748b',flexShrink:0}}>
+                    <Icon name={expandedNote===n.id?"ChevronUp":"ChevronDown"} size={14} />
+                  </span>
+                </button>
+                {expandedNote === n.id && (
+                  <div className="note-body">
+                    <p style={{whiteSpace:'pre-wrap',marginBottom:16,margin:'0 0 16px'}}>{n.content}</p>
+                    <div style={{display:'flex',justifyContent:'flex-end',gap:12}}>
+                      <button onClick={() => setModal({ show:true,type:'edit',title:'編輯項目',col:`notes_${key}`,id:n.id,fields:[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}],initialData:n })}
+                        style={{color:'#60a5fa',background:'none',border:'none',cursor:'pointer',fontSize:9,fontWeight:900,textTransform:'uppercase'}}>編輯內容</button>
+                      <button onClick={() => deleteDoc(`notes_${key}`, n.id)}
+                        style={{color:'#7f1d1d',background:'none',border:'none',cursor:'pointer',fontSize:9,fontWeight:900,textTransform:'uppercase'}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#7f1d1d'}>刪除項目</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* Travel */}
+    {activeTab === 'travel' && (
+      <div className="card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+          <h3 style={{fontWeight:900,fontStyle:'italic',textTransform:'uppercase',fontSize:13,color:'#94a3b8',margin:0}}>旅遊願望與行程</h3>
+          <button className="btn-icon emerald" onClick={() => setModal({ show:true,type:'add',title:'新增行程',col:'travel',fields:[{name:'destination',label:'目的地',type:'text'},{name:'start',label:'開始時間',type:'date'},{name:'end',label:'結束時間',type:'date'}],initialData:{} })}>
+            <Icon name="Plus" size={18} />
+          </button>
+        </div>
+        <div className="grid-2">
+          {travel.map(t => (
+            <div key={t.id} style={{padding:20,background:'rgba(30,41,59,0.2)',border:'1px solid #1e293b',borderRadius:'1.5rem',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:16}}>
+                <div style={{padding:12,background:'rgba(16,185,129,0.1)',borderRadius:16,color:'#10b981'}}>
+                  <Icon name="MapPin" size={22} />
+                </div>
+                <div>
+                  <p style={{fontWeight:900,fontSize:13,fontStyle:'italic',margin:'0 0 4px'}}>{t.destination}</p>
+                  <p style={{fontSize:9,fontWeight:900,color:'#64748b',textTransform:'uppercase',margin:0}}>{t.start} ~ {t.end}</p>
+                </div>
+              </div>
+              <button onClick={() => deleteDoc('travel', t.id)}
+                style={{background:'none',border:'none',cursor:'pointer',color:'#334155'}}
+                onMouseEnter={e=>e.currentTarget.style.color='#ef4444'} onMouseLeave={e=>e.currentTarget.style.color='#334155'}>
+                <Icon name="Trash2" size={18} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </main>
+
+  {/* Modal */}
+  <Modal modal={modal} onClose={() => setModal({...modal, show:false})} onSubmit={handleModalSubmit} />
+</div>
+```
+
+);
+}
+
+ReactDOM.createRoot(document.getElementById(‘root’)).render(<App />);
+</script>
+
+</body>
+</html>
