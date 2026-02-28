@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Manager Pro - PWA</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { background-color: #f8fafc; font-family: sans-serif; }
+        .tab-active { color: #2563eb; border-bottom: 2px solid #2563eb; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 解構 React Hook
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Firebase 實例化 (兼容模式) ---
+        // 請在此處替換為你的 Firebase 配置
+        const firebaseConfig = {
+            apiKey: "YOUR_FIREBASE_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = 'life-manager-pro';
+
+        // 啟動離線持久化
+        db.enablePersistence().catch((err) => {
+            console.warn("Persistence error:", err.code);
+        });
+
+        // 輔助組件：Lucide 圖標
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [assets, setAssets] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // 1. 初始化登入
+            useEffect(() => {
+                auth.signInAnonymously().catch(console.error);
+                const unsubscribe = auth.onAuthStateChanged((u) => {
+                    setUser(u);
+                    if (u) initializeAssets(u.uid);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // 2. 數據初始化邏輯 (資產範例)
+            const initializeAssets = async (uid) => {
+                const assetCol = db.collection('artifacts').doc(appId).collection('users').doc(uid).collection('assets');
+                const snapshot = await assetCol.get();
+                if (snapshot.empty) {
+                    const initialAssets = [
+                        { name: "台股", amount: 2544261, category: "台股" },
+                        { name: "現金", amount: 1357878, category: "現金" }
+                    ];
+                    initialAssets.forEach(a => assetCol.add({ ...a, createdAt: Date.now() }));
+                }
+            };
+
+            // 3. 監聽數據
+            useEffect(() => {
+                if (!user) return;
+                const unsub = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('assets')
+                    .onSnapshot(s => {
+                        setAssets(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                        setLoading(false);
+                    });
+                return () => unsub();
+            }, [user]);
+
+            // 計算總資產
+            const totalValue = useMemo(() => assets.reduce((sum, a) => sum + Number(a.amount || 0), 0), [assets]);
+
+            if (!user) return <div className="p-10 text-center">正在登入系統...</div>;
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen bg-white shadow-lg flex flex-col">
+                    {/* Header */}
+                    <header className="p-4 border-b flex justify-between items-center bg-blue-600 text-white">
+                        <h1 className="text-xl font-bold flex items-center gap-2">
+                            <Icon name="layout-dashboard" /> Life Manager
+                        </h1>
+                        <Icon name="sparkles" />
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="flex-1 p-4 overflow-y-auto">
+                        <div className="bg-blue-50 p-6 rounded-2xl mb-4 text-center">
+                            <p className="text-gray-600 text-sm">總資產淨值</p>
+                            <h2 className="text-3xl font-black text-blue-700 mt-1">
+                                ${totalValue.toLocaleString()}
+                            </h2>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h3 className="font-bold text-gray-700">資產分佈</h3>
+                            {assets.map(asset => (
+                                <div key={asset.id} className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span>{asset.name}</span>
+                                    <span className="font-mono font-bold">${Number(asset.amount).toLocaleString()}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+
+                    {/* Bottom Navigation */}
+                    <nav className="flex border-t bg-white p-2 justify-around text-gray-400">
+                        <button onClick={() => setActiveTab('dashboard')} className={`p-2 ${activeTab==='dashboard'?'text-blue-600':''}`}>
+                            <Icon name="pie-chart" />
+                        </button>
+                        <button onClick={() => setActiveTab('health')} className={`p-2 ${activeTab==='health'?'text-blue-600':''}`}>
+                            <Icon name="heart" />
+                        </button>
+                        <button className="p-2 bg-blue-600 text-white rounded-full -translate-y-4 shadow-lg">
+                            <Icon name="plus" />
+                        </button>
+                        <button onClick={() => setActiveTab('notes')} className={`p-2 ${activeTab==='notes'?'text-blue-600':''}`}>
+                            <Icon name="book" />
+                        </button>
+                        <button onClick={() => setActiveTab('ai')} className={`p-2 ${activeTab==='ai'?'text-blue-600':''}`}>
+                            <Icon name="brain-circuit" />
+                        </button>
+                    </nav>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
