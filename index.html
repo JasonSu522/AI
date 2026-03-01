@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>人生管理 | Life Manager Pro</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#020617;color:#e2e8f0;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:#1e293b;border-radius:10px;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.app{display:flex;min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:64px;background:#0f172a;border-right:1px solid #1e293b;display:flex;flex-direction:column;align-items:center;padding:20px 0;z-index:40;}
+.main{margin-left:64px;padding:28px 32px;min-height:100vh;overflow-y:auto;max-height:100vh;}
+.nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:54px;border:none;background:transparent;cursor:pointer;color:#64748b;border-right:2px solid transparent;transition:all 0.2s;}
+.nav-btn:hover{color:#cbd5e1;background:rgba(255,255,255,0.03);}
+.nav-btn.active{color:#60a5fa;background:rgba(59,130,246,0.1);border-right-color:#3b82f6;}
+.nav-btn svg{width:18px;height:18px;}
+.nav-label{font-size:8px;margin-top:4px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;}
+.voice-btn{margin-top:auto;margin-bottom:12px;width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#94a3b8;}
+.voice-btn.listening{background:#ef4444;color:white;animation:pulse 1.5s infinite;}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:20px;padding:22px;}
+.total-card{background:#0f172a;border:1px solid #1e293b;border-radius:28px;padding:28px;text-align:center;}
+.ai-panel{background:linear-gradient(135deg,rgba(23,37,84,0.5),#0f172a);border:1px solid rgba(59,130,246,0.3);border-radius:20px;padding:20px;}
+.ai-panel-green{background:#0f172a;border:1px solid rgba(16,185,129,0.3);border-radius:18px;padding:18px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.grid-asset{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;}
+@media(max-width:780px){
+  .grid-2,.grid-asset{grid-template-columns:1fr;}
+  .main{padding:16px;margin-left:0;margin-bottom:60px;max-height:calc(100vh - 60px);}
+  .sidebar{width:100%;height:60px;top:auto;bottom:0;flex-direction:row;border-right:none;border-top:1px solid #1e293b;padding:0;justify-content:space-around;}
+  .nav-btn{height:60px;border-right:none;border-top:2px solid transparent;width:auto;padding:0 10px;}
+  .nav-btn.active{border-top-color:#3b82f6;border-right:none;}
+  .voice-btn{margin:0;}
+}
+.section-title{font-size:12px;font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:0.1em;color:#94a3b8;}
+.label-xs{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#64748b;}
+.empty-msg{color:#475569;font-size:12px;font-style:italic;text-align:center;padding:18px 0;}
+.btn-blue{background:#2563eb;color:white;border:none;border-radius:10px;padding:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+.btn-blue:hover{background:#1d4ed8;}
+.btn-green{background:#059669;color:white;border:none;border-radius:10px;padding:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+.btn-ghost{background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:9px;padding:6px 13px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap;}
+.btn-ghost:hover{background:rgba(59,130,246,0.28);}
+.btn-ghost:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-ghost-green{background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.25);border-radius:9px;padding:6px 13px;font-size:10px;font-weight:900;cursor:pointer;}
+.btn-del{background:none;border:none;color:#334155;cursor:pointer;padding:4px;display:inline-flex;align-items:center;}
+.btn-del:hover{color:#ef4444;}
+.btn-edit{background:none;border:none;color:#334155;cursor:pointer;padding:4px;display:inline-flex;align-items:center;}
+.btn-edit:hover{color:#60a5fa;}
+.btn-text-blue{background:none;border:none;font-size:10px;font-weight:900;text-transform:uppercase;cursor:pointer;color:#60a5fa;padding:0;}
+.btn-text-red{background:none;border:none;font-size:10px;font-weight:900;text-transform:uppercase;cursor:pointer;color:#7f1d1d;padding:0;}
+.btn-text-red:hover{color:#ef4444;}
+.prog-bar{height:5px;background:#1e293b;border-radius:9999px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:100%;background:#3b82f6;border-radius:9999px;transition:width 0.4s;}
+.prog-input{width:44px;text-align:center;font-size:10px;font-weight:900;color:#60a5fa;padding:3px;background:#020617;border:1px solid #334155;border-radius:7px;font-family:inherit;}
+.asset-item{padding:12px 14px;background:rgba(30,41,59,0.25);border:1px solid #1e293b;border-radius:13px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.note-card{background:rgba(30,41,59,0.2);border:1px solid #1e293b;border-radius:13px;overflow:hidden;margin-bottom:8px;}
+.note-header{width:100%;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;background:none;border:none;color:#e2e8f0;cursor:pointer;font-size:12px;font-weight:900;font-style:italic;text-align:left;font-family:inherit;}
+.note-body{padding:14px;border-top:1px solid rgba(30,41,59,0.6);background:rgba(2,6,23,0.4);font-size:11px;color:#94a3b8;line-height:1.65;}
+.drag-item{padding:12px 14px;background:rgba(30,41,59,0.2);border:1px solid #1e293b;border-radius:13px;display:flex;align-items:center;gap:11px;margin-bottom:8px;transition:opacity 0.2s;}
+.drag-item.drag-over{opacity:0.3;border-color:#3b82f6;}
+.travel-card{padding:16px;background:rgba(30,41,59,0.2);border:1px solid #1e293b;border-radius:18px;display:flex;justify-content:space-between;align-items:center;}
+.travel-icon{padding:10px;background:rgba(16,185,129,0.1);border-radius:12px;color:#10b981;display:flex;}
+.modal-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,0.88);}
+.modal-box{position:relative;background:#0f172a;border:1px solid #1e293b;width:100%;max-width:420px;border-radius:32px;padding:36px;box-shadow:0 30px 60px rgba(0,0,0,0.7);z-index:1;max-height:90vh;overflow-y:auto;animation:fadeIn 0.2s ease;}
+.modal-title{font-size:18px;font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:-0.04em;color:white;margin-bottom:24px;}
+.close-btn{position:absolute;top:16px;right:16px;background:#1e293b;border:none;color:#64748b;cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.close-btn:hover{color:white;}
+.form-group{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;}
+.form-group label{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#64748b;}
+.form-group input,.form-group textarea{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 16px;font-size:14px;color:#e2e8f0;outline:none;width:100%;font-family:inherit;}
+.form-group input[type="date"]{color-scheme:dark;}
+.form-group input:focus,.form-group textarea:focus{border-color:#3b82f6;}
+.form-group textarea{height:100px;resize:vertical;}
+.btn-submit{width:100%;padding:14px;background:#2563eb;color:white;border:none;border-radius:13px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;cursor:pointer;margin-top:4px;}
+.btn-submit:hover{background:#1d4ed8;}
+.page{display:none;flex-direction:column;gap:18px;}
+.page.active{display:flex;animation:fadeIn 0.2s ease;}
+.header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar" id="sidebar">
+    <div style="margin-bottom:22px;color:#3b82f6;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+    </div>
+    <button class="nav-btn active" onclick="showTab('dashboard',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      <span class="nav-label">總覽</span>
+    </button>
+    <button class="nav-btn" onclick="showTab('plans',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="nav-label">計畫</span>
+    </button>
+    <button class="nav-btn" onclick="showTab('health',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      <span class="nav-label">健康</span>
+    </button>
+    <button class="nav-btn" onclick="showTab('assets',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+      <span class="nav-label">資產</span>
+    </button>
+    <button class="nav-btn" onclick="showTab('notes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span class="nav-label">筆記</span>
+    </button>
+    <button class="nav-btn" onclick="showTab('travel',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      <span class="nav-label">旅遊</span>
+    </button>
+    <button class="voice-btn" id="voiceBtn" onclick="handleVoice()" title="語音輸入">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    </button>
+  </nav>
+
+  <main class="main">
+    <div style="margin-bottom:24px;">
+      <h1 style="font-size:22px;font-weight:900;color:white;font-style:italic;text-transform:uppercase;letter-spacing:-0.04em;">人生管理</h1>
+      <p class="label-xs" style="margin-top:4px;">Efficiency &amp; Vision</p>
+    </div>
+
+```
+<!-- Dashboard -->
+<div id="page-dashboard" class="page active">
+  <div class="grid-2">
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <p style="font-size:10px;font-weight:900;color:#60a5fa;text-transform:uppercase;letter-spacing:0.14em;font-style:italic;">⬡ 人生雷達圖</p>
+      <svg id="radarSvg" viewBox="0 0 200 200" style="width:100%;max-width:200px;display:block;margin:0 auto;"></svg>
+    </div>
+    <div class="ai-panel" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;font-weight:900;color:#60a5fa;text-transform:uppercase;letter-spacing:0.08em;font-style:italic;">✦ AI 生命分析</span>
+        <button class="btn-ghost" id="aiBtn" onclick="generateAI()">重新產生</button>
+      </div>
+      <p id="aiSummary" style="font-size:12px;color:#cbd5e1;line-height:1.7;white-space:pre-wrap;flex:1;min-height:70px;">點擊「重新產生」取得 AI 專屬分析...</p>
+    </div>
+  </div>
+  <div class="card">
+    <p class="section-title" style="margin-bottom:14px;">📅 年度目標進度</p>
+    <div id="dashYearlyList"></div>
+  </div>
+  <div class="total-card">
+    <p class="label-xs">總資產市值（淨值）</p>
+    <div id="dashTotal" style="font-size:34px;font-weight:900;color:white;font-style:italic;margin:10px 0 22px;"></div>
+    <svg id="pieSvgDash" viewBox="-1.15 -1.15 2.3 2.3" style="transform:rotate(-90deg);width:100%;max-width:220px;height:auto;display:block;margin:0 auto;"></svg>
+    <div id="pieLegendDash" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px;"></div>
+    <div style="margin-top:22px;padding-top:20px;border-top:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p class="label-xs">緊急預備金</p>
+        <p id="emergencyDisplay" style="font-size:20px;font-weight:900;color:#60a5fa;font-style:italic;margin-top:4px;">$0</p>
+      </div>
+      <button class="btn-ghost" onclick="openModal('emergency_fund','edit','修改緊急預備金',[{name:'value',label:'金額',type:'number'}])">修改金額</button>
+    </div>
+  </div>
+</div>
+
+<!-- Plans -->
+<div id="page-plans" class="page">
+  <div class="card">
+    <div class="header-row">
+      <span class="section-title">年度目標計畫</span>
+      <button class="btn-blue" onclick="openModal('plans_yearly','add','新增年度計畫',[{name:'title',label:'目標名稱',type:'text'},{name:'progress',label:'目前進度(%)',type:'number'}])">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div id="yearlyList"></div>
+  </div>
+  <div class="card">
+    <div class="header-row">
+      <span class="section-title">每日任務管理</span>
+      <button class="btn-blue" onclick="openModal('plans_daily','add','新增每日任務',[{name:'title',label:'任務內容',type:'text'}])">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div id="dailyList"></div>
+  </div>
+</div>
+
+<!-- Health -->
+<div id="page-health" class="page">
+  <div class="card">
+    <div class="header-row">
+      <span class="section-title">健康數據趨勢</span>
+      <button class="btn-blue" onclick="openModal('health_logs','add','記錄今日數據',[{name:'weight',label:'體重(kg)',type:'number'},{name:'fat',label:'體脂(%)',type:'number'},{name:'muscle',label:'肌肉量(kg)',type:'number'}])">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div id="healthChart"></div>
+    <p class="label-xs" style="margin:16px 0 10px;">歷史記錄</p>
+    <div id="healthLogs"></div>
+  </div>
+</div>
+
+<!-- Assets -->
+<div id="page-assets" class="page">
+  <div class="ai-panel-green">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:11px;font-weight:900;color:#34d399;text-transform:uppercase;letter-spacing:0.08em;">ⓘ AI 資產配置建議</span>
+      <button class="btn-ghost-green" id="assetAiBtn" onclick="getAssetAI()">開始分析</button>
+    </div>
+    <p id="assetAdvice" style="font-size:12px;color:#94a3b8;line-height:1.6;font-style:italic;">點擊「開始分析」，AI 將提供資產配置優化建議。</p>
+  </div>
+  <div class="grid-asset">
+    <div class="total-card" style="border-radius:24px;">
+      <p class="label-xs">總資產市值</p>
+      <div id="assetTotal" style="font-size:26px;font-weight:900;color:white;font-style:italic;margin:8px 0 18px;"></div>
+      <svg id="pieSvgAsset" viewBox="-1.15 -1.15 2.3 2.3" style="transform:rotate(-90deg);width:100%;max-width:200px;height:auto;display:block;margin:0 auto;"></svg>
+      <div id="pieLegendAsset" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px;"></div>
+    </div>
+    <div class="card">
+      <div class="header-row">
+        <span class="section-title">資產明細</span>
+        <button class="btn-blue" onclick="openModal('assets','add','新增資產',[{name:'name',label:'名稱',type:'text'},{name:'amount',label:'市值金額',type:'number'},{name:'category',label:'分類(台股/美股/現金/黃金/借款)',type:'text'}])">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div id="assetList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Notes -->
+<div id="page-notes" class="page">
+  <div class="grid-2">
+    <div class="card">
+      <div class="header-row"><span class="label-xs">人生成長</span>
+        <button style="background:none;border:none;color:#3b82f6;cursor:pointer;" onclick="openModal('notes_life','add','新增人生成長',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}])"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="notes-life"></div>
+    </div>
+    <div class="card">
+      <div class="header-row"><span class="label-xs">書籍重點</span>
+        <button style="background:none;border:none;color:#3b82f6;cursor:pointer;" onclick="openModal('notes_book','add','新增書籍重點',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}])"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="notes-book"></div>
+    </div>
+    <div class="card">
+      <div class="header-row"><span class="label-xs">台指交易</span>
+        <button style="background:none;border:none;color:#3b82f6;cursor:pointer;" onclick="openModal('notes_trading','add','新增台指交易',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}])"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="notes-trading"></div>
+    </div>
+    <div class="card">
+      <div class="header-row"><span class="label-xs">網路心得</span>
+        <button style="background:none;border:none;color:#3b82f6;cursor:pointer;" onclick="openModal('notes_web','add','新增網路心得',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}])"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="notes-web"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Travel -->
+<div id="page-travel" class="page">
+  <div class="card">
+    <div class="header-row">
+      <span class="section-title">旅遊願望與行程</span>
+      <button class="btn-green" onclick="openModal('travel','add','新增旅遊行程',[{name:'destination',label:'目的地',type:'text'},{name:'start',label:'開始日期',type:'date'},{name:'end',label:'結束日期',type:'date'}])">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div id="travelList" class="grid-2"></div>
+  </div>
+</div>
+```
+
+  </main>
+</div>
+
+<!-- Modal -->
+
+<div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="closeModalOnBg(event)">
+  <div class="modal-box">
+    <button class="close-btn" onclick="closeModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div id="modalTitle" class="modal-title"></div>
+    <form id="modalForm" onsubmit="handleModalSubmit(event)">
+      <div id="modalFields"></div>
+      <button type="submit" class="btn-submit">確認送出</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════
+//  CONFIG
+// ════════════════════════════════
+const GEMINI_KEY = 'AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28';
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+
+// ════════════════════════════════
+//  LOCAL STORAGE
+// ════════════════════════════════
+function load() { try { return JSON.parse(localStorage.getItem('lm3') || '{}'); } catch(e) { return {}; } }
+function save(d) { try { localStorage.setItem('lm3', JSON.stringify(d)); } catch(e) {} }
+function genId() { return '_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+// ════════════════════════════════
+//  STATE
+// ════════════════════════════════
+var DB = load();
+var radarData = { wealth:50, health:50, growth:50, discipline:50, experience:50 };
+var aiLoading = false;
+var expandedNote = null;
+var dragSrc = null;
+var modalMeta = {};
+
+// Init default assets
+if (!DB.assets || DB.assets.length === 0) {
+  DB.assets = [
+    {id:genId(),name:'台股',amount:2544261,category:'台股',createdAt:Date.now()},
+    {id:genId(),name:'美股',amount:829175,category:'美股',createdAt:Date.now()},
+    {id:genId(),name:'台新外幣(活)-USD',amount:4257,category:'美股',createdAt:Date.now()},
+    {id:genId(),name:'台新外幣(活)-JPY',amount:6006,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'台新外幣(定)-USD',amount:75473,category:'美股',createdAt:Date.now()},
+    {id:genId(),name:'合庫(活存)',amount:1357878,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'台新(活存)',amount:57170,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'彰銀(活存)',amount:457003,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'兆豐(備用金)',amount:43314,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'黃金(2.2盎司)',amount:357357,category:'黃金',createdAt:Date.now()},
+    {id:genId(),name:'台幣現金',amount:20000,category:'現金',createdAt:Date.now()},
+    {id:genId(),name:'借志',amount:300000,category:'借款',createdAt:Date.now()},
+  ];
+  save(DB);
+}
+
+// ════════════════════════════════
+//  TAB NAVIGATION
+// ════════════════════════════════
+function showTab(id, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('page-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  renderAll();
+}
+
+// ════════════════════════════════
+//  CATEGORIES
+// ════════════════════════════════
+function getCategorized() {
+  var c = {'台股':0,'美股':0,'現金':0,'黃金':0,'借款':0};
+  (DB.assets||[]).forEach(function(a) {
+    var amt = Number(a.amount)||0;
+    var cat = a.category||'現金';
+    c[cat] = (c[cat]||0) + amt;
+  });
+  return Object.entries(c).map(function(entry) { return {name:entry[0],amount:entry[1]}; });
+}
+function getTotal() { return getCategorized().reduce(function(a,b) { return a+b.amount; }, 0); }
+
+// ════════════════════════════════
+//  PIE CHART
+// ════════════════════════════════
+function renderPie(svgId, legendId) {
+  var data = getCategorized();
+  var total = getTotal();
+  var svg = document.getElementById(svgId);
+  var legend = document.getElementById(legendId);
+  if (!svg) return;
+  svg.innerHTML = '';
+  if (!total) { svg.innerHTML = '<text x="0" y="0" fill="#475569" font-size="0.15" text-anchor="middle" dominant-baseline="middle">暫無數據</text>'; return; }
+  var cum = 0;
+  function coord(p) {
+    return [Math.cos(2*Math.PI*p), Math.sin(2*Math.PI*p)];
+  }
+  data.forEach(function(item, i) {
+    var pct = item.amount / total;
+    if (pct <= 0) return;
+    var sp = cum;
+    var sc = coord(sp);
+    var sx = sc[0], sy = sc[1];
+    cum += pct;
+    var ec = coord(cum);
+    var ex = ec[0], ey = ec[1];
+    var mc = coord(sp + pct/2);
+    var mx = mc[0], my = mc[1];
+    var large = pct > 0.5 ? 1 : 0;
+    var path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', 'M'+sx+' '+sy+' A1 1 0 '+large+' 1 '+ex+' '+ey+' L0 0');
+    path.setAttribute('fill', COLORS[i%COLORS.length]);
+    path.setAttribute('stroke', '#020617');
+    path.setAttribute('stroke-width', '0.025');
+    svg.appendChild(path);
+    if (pct > 0.07) {
+      var txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', mx*0.68); txt.setAttribute('y', my*0.68);
+      txt.setAttribute('fill','white'); txt.setAttribute('font-size','0.12');
+      txt.setAttribute('font-weight','bold'); txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('dominant-baseline','middle');
+      txt.setAttribute('transform', 'rotate(90,'+mx*0.68+','+my*0.68+')');
+      txt.textContent = item.name + ' ' + Math.round(pct*100) + '%';
+      svg.appendChild(txt);
+    }
+  });
+  if (legend) {
+    legend.innerHTML = data.map(function(item,i) {
+      return '<span style="font-size:10px;font-weight:700;color:'+COLORS[i%COLORS.length]+';display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:'+COLORS[i%COLORS.length]+';display:inline-block;"></span>'+item.name+': $'+Number(item.amount).toLocaleString()+'</span>';
+    }).join('');
+  }
+}
+
+// ════════════════════════════════
+//  RADAR CHART
+// ════════════════════════════════
+function renderRadar() {
+  var svg = document.getElementById('radarSvg');
+  if (!svg) return;
+  svg.innerHTML = '';
+  var keys = ['wealth','health','growth','discipline','experience'];
+  var labels = ['財務','健康','成長','自律','體驗'];
+  var C = 100, R = 66;
+  function coord(i, v) {
+    var a = Math.PI*2*i/5 - Math.PI/2;
+    var r = R*v/100;
+    return [C + r*Math.cos(a), C + r*Math.sin(a)];
+  }
+  [20,40,60,80,100].forEach(function(v) {
+    var poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    poly.setAttribute('points', keys.map(function(_,j){ return coord(j,v).join(','); }).join(' '));
+    poly.setAttribute('fill','none'); poly.setAttribute('stroke','#1e293b'); poly.setAttribute('stroke-width','0.7');
+    svg.appendChild(poly);
+  });
+  keys.forEach(function(_, i) {
+    var pt = coord(i,100);
+    var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',C); line.setAttribute('y1',C); line.setAttribute('x2',pt[0]); line.setAttribute('y2',pt[1]);
+    line.setAttribute('stroke','#1e293b'); line.setAttribute('stroke-width','0.7');
+    svg.appendChild(line);
+  });
+  var poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points', keys.map(function(k,i){ return coord(i,radarData[k]||50).join(','); }).join(' '));
+  poly.setAttribute('fill','rgba(59,130,246,0.2)'); poly.setAttribute('stroke','#3b82f6');
+  poly.setAttribute('stroke-width','2'); poly.setAttribute('stroke-linejoin','round');
+  svg.appendChild(poly);
+  keys.forEach(function(k, i) {
+    var pt = coord(i, radarData[k]||50);
+    var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',pt[0]); c.setAttribute('cy',pt[1]); c.setAttribute('r','3.5'); c.setAttribute('fill','#3b82f6');
+    svg.appendChild(c);
+  });
+  labels.forEach(function(l, i) {
+    var pt = coord(i,120);
+    var txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',pt[0]); txt.setAttribute('y',pt[1]); txt.setAttribute('fill','#64748b');
+    txt.setAttribute('font-size','10'); txt.setAttribute('font-weight','bold');
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','middle');
+    txt.textContent = l;
+    svg.appendChild(txt);
+  });
+}
+
+// ════════════════════════════════
+//  HEALTH CHART
+// ════════════════════════════════
+function renderHealthChart() {
+  var el = document.getElementById('healthChart');
+  if (!el) return;
+  var data = DB.health_logs || [];
+  if (data.length < 2) {
+    el.innerHTML = '<p class="empty-msg">請新增至少兩筆資料以顯示趨勢圖</p>';
+    return;
+  }
+  var W=380, H=150, P=22;
+  var keys=['weight','fat','muscle'], colors=['#3b82f6','#ef4444','#10b981'], lbls=['體重','體脂','肌肉'];
+  function getPoints(key) {
+    var vals = data.map(function(d) { return parseFloat(d[key])||0; });
+    var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), range=max===min?1:max-min;
+    return data.map(function(d,i) {
+      return {
+        x: P+(i/(data.length-1))*(W-2*P),
+        y: (H-P)-((parseFloat(d[key])||0)-min)/range*(H-2*P)
+      };
+    });
+  }
+  var paths = '';
+  keys.forEach(function(k,i) {
+    var pts = getPoints(k);
+    paths += '<polyline fill="none" stroke="'+colors[i]+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="'+pts.map(function(p){ return p.x+','+p.y; }).join(' ')+'"/>';
+    pts.forEach(function(p) { paths += '<circle cx="'+p.x+'" cy="'+p.y+'" r="4" fill="'+colors[i]+'" stroke="#020617" stroke-width="1.5"/>'; });
+  });
+  var legend = lbls.map(function(l,i) { return '<span style="font-size:10px;color:'+colors[i]+';font-weight:900;display:flex;align-items:center;gap:4px;"><span style="width:14px;height:3px;background:'+colors[i]+';border-radius:2px;display:inline-block;"></span>'+l+'</span>'; }).join('');
+  el.innerHTML = '<div style="background:rgba(2,6,23,0.4);padding:12px;border-radius:12px;border:1px solid #1e293b;"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:130px;overflow:visible;">'+paths+'</svg><div style="display:flex;gap:16px;justify-content:center;margin-top:8px;">'+legend+'</div></div>';
+}
+
+// ════════════════════════════════
+//  RENDER LISTS
+// ════════════════════════════════
+function renderYearly() {
+  var el = document.getElementById('yearlyList');
+  if (!el) return;
+  var items = DB.plans_yearly || [];
+  if (!items.length) { el.innerHTML = '<p class="empty-msg">尚無項目，點擊 + 新增</p>'; return; }
+  el.innerHTML = items.map(function(item,idx) {
+    return '<div class="drag-item" draggable="true" data-col="plans_yearly" data-idx="'+idx+'" data-id="'+item.id+'" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event,\'plans_yearly\')" ondragend="dragEnd(event)"><span style="color:#334155;cursor:grab;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg></span><div style="flex:1;"><p style="font-size:12px;font-weight:900;font-style:italic;color:#e2e8f0;">'+esc(item.title)+'</p></div><input type="number" min="0" max="100" value="'+(item.progress||0)+'" class="prog-input" onblur="updateProgress(\'plans_yearly\',\''+item.id+'\',this.value)"/><button class="btn-del" onclick="deleteItem(\'plans_yearly\',\''+item.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>';
+  }).join('');
+}
+
+function renderDaily() {
+  var el = document.getElementById('dailyList');
+  if (!el) return;
+  var items = DB.plans_daily || [];
+  if (!items.length) { el.innerHTML = '<p class="empty-msg">尚無項目，點擊 + 新增</p>'; return; }
+  el.innerHTML = items.map(function(item,idx) {
+    return '<div class="drag-item" draggable="true" data-col="plans_daily" data-idx="'+idx+'" data-id="'+item.id+'" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event,\'plans_daily\')" ondragend="dragEnd(event)"><span style="color:#334155;cursor:grab;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg></span><div style="flex:1;"><p style="font-size:12px;font-weight:900;font-style:italic;color:#e2e8f0;">'+esc(item.title)+'</p></div><button class="btn-del" onclick="deleteItem(\'plans_daily\',\''+item.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>';
+  }).join('');
+}
+
+function renderDashYearly() {
+  var el = document.getElementById('dashYearlyList');
+  if (!el) return;
+  var items = (DB.plans_yearly||[]).slice(0,5);
+  if (!items.length) { el.innerHTML = '<p class="empty-msg">尚無計畫，前往「計畫」頁新增</p>'; return; }
+  el.innerHTML = items.map(function(p) {
+    return '<div style="margin-bottom:13px;"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;font-style:italic;margin-bottom:4px;"><span>'+esc(p.title)+'</span><span style="color:#60a5fa;">'+(p.progress||0)+'%</span></div><div class="prog-bar"><div class="prog-fill" style="width:'+(p.progress||0)+'%;"></div></div></div>';
+  }).join('');
+}
+
+function renderAssets() {
+  var el = document.getElementById('assetList');
+  if (!el) return;
+  var items = DB.assets || [];
+  if (!items.length) { el.innerHTML = '<p class="empty-msg">尚無資產</p>'; return; }
+  el.innerHTML = items.map(function(a) {
+    return '<div class="asset-item"><div style="flex:1;min-width:0;padding-right:10px;"><div style="font-size:12px;font-weight:900;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+'</div><div style="display:flex;gap:8px;margin-top:3px;align-items:center;"><span style="font-size:9px;color:#64748b;font-weight:900;text-transform:uppercase;">'+esc(a.category)+'</span><span style="font-size:13px;font-weight:900;color:#60a5fa;font-style:italic;">$'+Number(a.amount).toLocaleString()+'</span></div></div><div style="display:flex;gap:2px;flex-shrink:0;"><button class="btn-edit" onclick="openModal(\'assets\',\'edit\',\'編輯資產\',[{name:\'name\',label:\'名稱\',type:\'text\'},{name:\'amount\',label:\'市值金額\',type:\'number\'},{name:\'category\',label:\'分類\',type:\'text\'}],\''+a.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn-del" onclick="deleteItem(\'assets\',\''+a.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>';
+  }).join('');
+}
+
+function renderHealthLogs() {
+  var el = document.getElementById('healthLogs');
+  if (!el) return;
+  var logs = (DB.health_logs||[]).slice().reverse().slice(0,10);
+  if (!logs.length) { el.innerHTML = '<p class="empty-msg">尚無記錄</p>'; return; }
+  el.innerHTML = logs.map(function(l) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 13px;background:rgba(30,41,59,0.2);border-radius:11px;margin-bottom:7px;border:1px solid #1e293b;"><span style="font-size:10px;color:#64748b;">'+new Date(l.createdAt).toLocaleDateString('zh-TW')+'</span><div style="display:flex;gap:10px;">'+(l.weight?'<span style="font-size:11px;color:#3b82f6;font-weight:900;">體重 '+l.weight+'kg</span>':'')+(l.fat?'<span style="font-size:11px;color:#ef4444;font-weight:900;">體脂 '+l.fat+'%</span>':'')+(l.muscle?'<span style="font-size:11px;color:#10b981;font-weight:900;">肌肉 '+l.muscle+'kg</span>':'')+'</div><button class="btn-del" onclick="deleteItem(\'health_logs\',\''+l.id+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>';
+  }).join('');
+}
+
+function renderNotes(key) {
+  var el = document.getElementById('notes-' + key);
+  if (!el) return;
+  var items = DB['notes_'+key] || [];
+  if (!items.length) { el.innerHTML = '<p class="empty-msg">尚無筆記</p>'; return; }
+  el.innerHTML = items.map(function(n) {
+    return '<div class="note-card"><button class="note-header" onclick="toggleNote(\''+n.id+'\',\'notes-'+key+'-body-'+n.id+'\')"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;padding-right:10px;">'+esc(n.title)+'</span><span id="notes-'+key+'-chevron-'+n.id+'" style="color:#475569;flex-shrink:0;">▾</span></button><div id="notes-'+key+'-body-'+n.id+'" style="display:none;" class="note-body"><p style="white-space:pre-wrap;margin-bottom:12px;">'+esc(n.content||'')+'</p><div style="display:flex;justify-content:flex-end;gap:12px;"><button class="btn-text-blue" onclick="openModal(\'notes_'+key+'\',\'edit\',\'編輯筆記\',[{name:\'title\',label:\'標題\',type:\'text\'},{name:\'content\',label:\'內容\',type:\'textarea\'}],\''+n.id+'\')">編輯</button><button class="btn-text-red" onclick="deleteItem(\'notes_'+key+'\',\''+n.id+'\')">刪除</button></div></div></div>';
+  }).join('');
+}
+
+function renderTravel() {
+  var el = document.getElementById('travelList');
+  if (!el) return;
+  var items = DB.travel || [];
+  if (!items.length) { el.innerHTML = '<p class="empty-msg" style="grid-column:1/-1;">尚無行程，點擊 + 新增</p>'; return; }
+  el.innerHTML = items.map(function(t) {
+    return '<div class="travel-card"><div style="display:flex;align-items:center;gap:13px;"><div class="travel-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div><div><p style="font-size:13px;font-weight:900;font-style:italic;color:white;">'+esc(t.destination)+'</p><p style="font-size:10px;color:#64748b;font-weight:700;margin-top:3px;">'+t.start+' ～ '+t.end+'</p></div></div><button class="btn-del" onclick="deleteItem(\'travel\',\''+t.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>';
+  }).join('');
+}
+
+function renderDashStats() {
+  var t = getTotal();
+  var ef = document.getElementById('emergencyDisplay');
+  var dt = document.getElementById('dashTotal');
+  var at = document.getElementById('assetTotal');
+  if (ef) ef.textContent = '$' + Number(DB.emergencyFund||0).toLocaleString();
+  if (dt) dt.textContent = '$' + t.toLocaleString();
+  if (at) at.textContent = '$' + t.toLocaleString();
+}
+
+function renderAll() {
+  renderRadar();
+  renderPie('pieSvgDash','pieLegendDash');
+  renderPie('pieSvgAsset','pieLegendAsset');
+  renderDashStats();
+  renderDashYearly();
+  renderYearly();
+  renderDaily();
+  renderAssets();
+  renderHealthChart();
+  renderHealthLogs();
+  ['life','book','trading','web'].forEach(renderNotes);
+  renderTravel();
+}
+
+// ════════════════════════════════
+//  NOTE TOGGLE
+// ════════════════════════════════
+function toggleNote(id, bodyId) {
+  var body = document.getElementById(bodyId);
+  if (!body) return;
+  var isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  var chevrons = document.querySelectorAll('[id*="chevron-' + id + '"]');
+  chevrons.forEach(function(c) { c.textContent = isOpen ? '▾' : '▴'; });
+}
+
+// ════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════
+function dragStart(e) { dragSrc = e.currentTarget; e.dataTransfer.effectAllowed = 'move'; }
+function dragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function dragEnd(e) { document.querySelectorAll('.drag-item').forEach(function(el) { el.classList.remove('drag-over'); }); }
+function dragDrop(e, col) {
+  e.preventDefault();
+  if (!dragSrc || dragSrc === e.currentTarget) return;
+  var fromIdx = parseInt(dragSrc.dataset.idx);
+  var toIdx = parseInt(e.currentTarget.dataset.idx);
+  var arr = (DB[col]||[]).slice();
+  var removed = arr.splice(fromIdx, 1);
+  arr.splice(toIdx, 0, removed[0]);
+  DB[col] = arr;
+  save(DB);
+  renderAll();
+}
+
+// ════════════════════════════════
+//  CRUD
+// ════════════════════════════════
+function deleteItem(col, id) {
+  if (!DB[col]) return;
+  DB[col] = DB[col].filter(function(i) { return i.id !== id; });
+  save(DB);
+  renderAll();
+}
+
+function updateProgress(col, id, val) {
+  var v = Math.min(100, Math.max(0, parseInt(val)||0));
+  if (!DB[col]) return;
+  DB[col] = DB[col].map(function(i) { return i.id===id ? Object.assign({}, i, {progress:v}) : i; });
+  save(DB);
+  renderAll();
+}
+
+// ════════════════════════════════
+//  MODAL
+// ════════════════════════════════
+function openModal(col, type, title, fields, editId) {
+  modalMeta = { col:col, type:type, fields:fields, editId:editId };
+  document.getElementById('modalTitle').textContent = title;
+  var fd = document.getElementById('modalFields');
+  var initData = {};
+  if (type === 'edit' && editId && col !== 'emergency_fund') {
+    var arr = DB[col] || [];
+    for (var i=0; i<arr.length; i++) { if (arr[i].id === editId) { initData = arr[i]; break; } }
+  }
+  if (col === 'emergency_fund') initData = { value: DB.emergencyFund || 0 };
+  fd.innerHTML = fields.map(function(f) {
+    return '<div class="form-group"><label>'+f.label+'</label>'+(f.type === 'textarea' ? '<textarea name="'+f.name+'" required>'+esc(initData[f.name]||'')+'</textarea>' : '<input name="'+f.name+'" type="'+f.type+'" step="any" value="'+esc(String(initData[f.name]||''))+'" required/>')+'</div>';
+
+}).join(’’);
+document.getElementById(‘modalOverlay’).style.display = ‘flex’;
+}
+
+function closeModal() { document.getElementById(‘modalOverlay’).style.display = ‘none’; }
+function closeModalOnBg(e) { if (e.target === document.getElementById(‘modalOverlay’)) closeModal(); }
+
+function handleModalSubmit(e) {
+e.preventDefault();
+var fd = new FormData(e.target);
+var data = {};
+fd.forEach(function(val, key) { data[key] = val; });
+var col = modalMeta.col;
+var type = modalMeta.type;
+var editId = modalMeta.editId;
+
+if (col === ‘emergency_fund’) {
+DB.emergencyFund = Number(data.value);
+} else if (type === ‘edit’) {
+DB[col] = (DB[col]||[]).map(function(i) {
+if (i.id === editId) {
+return Object.assign({}, i, data);
+}
+return i;
+});
+} else {
+if (!DB[col]) DB[col] = [];
+var newItem = Object.assign({ id: genId(), createdAt: Date.now() }, data);
+DB[col].push(newItem);
+}
+save(DB);
+closeModal();
+renderAll();
+}
+
+// ════════════════════════════════
+//  ESCAPE HTML
+// ════════════════════════════════
+function esc(s) {
+return String(s||’’).replace(/&/g,’&’).replace(/</g,’<’).replace(/>/g,’>’).replace(/”/g,’"’);
+}
+
+// ════════════════════════════════
+//  AI
+// ════════════════════════════════
+async function callAI(prompt, json) {
+var url = ‘https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=’ + GEMINI_KEY;
+var body = { contents:[{parts:[{text:prompt}]}] };
+if (json) body.generationConfig = { responseMimeType:‘application/json’ };
+var r = await fetch(url, {method:‘POST’, headers:{‘Content-Type’:‘application/json’}, body:JSON.stringify(body)});
+var d = await r.json();
+return (d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text) || ‘’;
+}
+
+async function generateAI() {
+if (aiLoading) return;
+aiLoading = true;
+var btn = document.getElementById(‘aiBtn’);
+var summary = document.getElementById(‘aiSummary’);
+if (btn) btn.textContent = ‘運算中…’;
+var cat = getCategorized();
+var total = getTotal();
+var ctx = ‘資產總額：’ + total.toLocaleString() + ‘元，配置：’ + JSON.stringify(cat);
+try {
+var results = await Promise.all([
+callAI(‘分析人生數據，對財務、健康、自我成長、執行力、生活體驗各評0-100分，只回傳JSON：{“wealth”:N,“health”:N,“growth”:N,“discipline”:N,“experience”:N}。資料：’ + ctx, true),
+callAI(‘根據資料：’ + ctx + ‘，用繁體中文約150字給出人生成長與理財建議。’, false)
+]);
+var r1 = results[0], r2 = results[1];
+try { if(r1) radarData = JSON.parse(r1); } catch(e) {}
+if (summary) summary.textContent = r2 || ‘AI 分析完成。’;
+renderRadar();
+} catch(e) {
+if (summary) summary.textContent = ‘AI 分析暫時無法使用，請確認網路連線。’;
+}
+aiLoading = false;
+if (btn) btn.textContent = ‘重新產生’;
+}
+
+async function getAssetAI() {
+if (aiLoading) return;
+aiLoading = true;
+var btn = document.getElementById(‘assetAiBtn’);
+var adv = document.getElementById(‘assetAdvice’);
+if (btn) btn.textContent = ‘分析中…’;
+try {
+var r = await callAI(‘分析資產配置：’ + JSON.stringify(getCategorized()) + ‘，用繁體中文約100字給出具體優化建議。’, false);
+if (adv) adv.textContent = r || ‘分析完成。’;
+} catch(e) {
+if (adv) adv.textContent = ‘AI 分析暫時無法使用。’;
+}
+aiLoading = false;
+if (btn) btn.textContent = ‘開始分析’;
+}
+
+// ════════════════════════════════
+//  VOICE
+// ════════════════════════════════
+function handleVoice() {
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var btn = document.getElementById(‘voiceBtn’);
+if (!SR) { alert(‘語音輸入需要在 Safari 設定中允許麥克風，或請使用 Chrome 瀏覽器。’); return; }
+var rec = new SR();
+rec.lang = ‘zh-TW’;
+rec.start();
+if (btn) btn.classList.add(‘listening’);
+rec.onresult = async function(ev) {
+var t = ev.results[0][0].transcript;
+if (btn) btn.classList.remove(‘listening’);
+try {
+var r = await callAI(‘解析語句歸類為health_logs（含體重/體脂/肌肉）或health_exercise（運動），語句：「’+t+’」，只回傳JSON：{“type”:“health_logs”,“data”:{相關欄位}}’, true);
+var p = JSON.parse(r);
+if (!DB[p.type]) DB[p.type] = [];
+var newEntry = Object.assign({ id:genId(), createdAt:Date.now() }, p.data);
+DB[p.type].push(newEntry);
+save(DB); renderAll();
+} catch(e) {}
+};
+rec.onerror = function() { if (btn) btn.classList.remove(‘listening’); };
+}
+
+// ════════════════════════════════
+//  INIT
+// ════════════════════════════════
+renderAll();
+</script>
+
+</body>
+</html>
