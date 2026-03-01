@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>人生管理 | Life Manager Pro</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#020617;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;min-height:100vh;font-size:15px;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.app{display:flex;min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:64px;background:#0f172a;border-right:1px solid #1e293b;display:flex;flex-direction:column;align-items:center;padding:20px 0;z-index:100;}
+.main{margin-left:64px;padding:26px 22px;width:calc(100% - 64px);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:54px;border:none;background:transparent;cursor:pointer;color:#64748b;border-right:3px solid transparent;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.nav-btn.active{color:#60a5fa;background:rgba(59,130,246,.12);border-right-color:#3b82f6;}
+.nav-btn svg{width:20px;height:20px;pointer-events:none;}
+.nav-label{font-size:9px;margin-top:4px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;pointer-events:none;}
+.voice-btn{margin-top:auto;margin-bottom:12px;width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#94a3b8;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.voice-btn.on{background:#ef4444;color:#fff;animation:pulse 1.5s infinite;}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:20px;}
+.total-card{background:#0f172a;border:1px solid #1e293b;border-radius:24px;padding:26px;text-align:center;}
+.ai-blue{background:linear-gradient(135deg,rgba(23,37,84,.5),#0f172a);border:1px solid rgba(59,130,246,.3);border-radius:18px;padding:18px;}
+.ai-green{background:#0f172a;border:1px solid rgba(16,185,129,.3);border-radius:16px;padding:16px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.gridA{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;}
+.page{display:none;}
+.page.on{display:flex;flex-direction:column;gap:16px;animation:fadeIn .2s ease;}
+.sec{font-size:13px;font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;}
+.lxs{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em;color:#64748b;}
+.empty{color:#475569;font-size:14px;font-style:italic;text-align:center;padding:18px 0;}
+.hrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.bb{background:#2563eb;color:#fff;border:none;border-radius:10px;padding:9px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.bg{background:#059669;color:#fff;border:none;border-radius:10px;padding:9px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.bgh{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:7px 13px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.bgg{background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:7px 13px;font-size:11px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.bd{background:none;border:none;color:#475569;cursor:pointer;padding:5px;display:inline-flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.be{background:none;border:none;color:#475569;cursor:pointer;padding:5px;display:inline-flex;align-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.bsb{background:none;border:none;font-size:11px;font-weight:900;text-transform:uppercase;cursor:pointer;color:#60a5fa;padding:0;touch-action:manipulation;}
+.bsr{background:none;border:none;font-size:11px;font-weight:900;text-transform:uppercase;cursor:pointer;color:#ef4444;padding:0;touch-action:manipulation;}
+.pbar{height:5px;background:#1e293b;border-radius:9999px;overflow:hidden;margin-top:4px;}
+.pfil{height:100%;background:#3b82f6;border-radius:9999px;}
+.pinp{width:46px;text-align:center;font-size:12px;font-weight:900;color:#60a5fa;padding:3px;background:#020617;border:1px solid #334155;border-radius:6px;font-family:inherit;}
+.aitem{padding:12px 14px;background:rgba(30,41,59,.25);border:1px solid #1e293b;border-radius:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.ditem{padding:12px 14px;background:rgba(30,41,59,.2);border:1px solid #1e293b;border-radius:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.ditem.dov{opacity:.3;border-color:#3b82f6;}
+.nc{background:rgba(30,41,59,.2);border:1px solid #1e293b;border-radius:12px;overflow:hidden;margin-bottom:8px;}
+.nhdr{width:100%;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;background:none;border:none;color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:900;font-style:italic;text-align:left;font-family:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.nbody{padding:14px;border-top:1px solid rgba(30,41,59,.6);background:rgba(2,6,23,.4);font-size:13px;color:#94a3b8;line-height:1.65;display:none;}
+.nbody.on{display:block;}
+.tcard{padding:15px;background:rgba(30,41,59,.2);border:1px solid #1e293b;border-radius:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.tico{padding:9px;background:rgba(16,185,129,.1);border-radius:10px;color:#10b981;display:flex;}
+.mwrap{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.85);}
+.mwrap.on{display:flex;}
+.mbox{position:relative;background:#0f172a;border:1px solid #1e293b;width:100%;max-width:420px;border-radius:28px;padding:32px;box-shadow:0 30px 60px rgba(0,0,0,.7);max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.mtit{font-size:18px;font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:-.03em;color:#fff;margin-bottom:22px;}
+.mcls{position:absolute;top:14px;right:14px;background:#1e293b;border:none;color:#64748b;cursor:pointer;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
+.fg{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.fg label{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em;color:#64748b;}
+.fg input,.fg textarea{background:#1e293b;border:1px solid #334155;border-radius:11px;padding:12px 15px;font-size:15px;color:#e2e8f0;outline:none;width:100%;font-family:inherit;-webkit-appearance:none;}
+.fg input[type=date]{color-scheme:dark;}
+.fg textarea{height:100px;resize:vertical;}
+.msub{width:100%;padding:14px;background:#2563eb;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.18em;cursor:pointer;touch-action:manipulation;}
+@media(max-width:700px){
+  .grid2{grid-template-columns:1fr;}
+  .gridA{grid-template-columns:1fr;}
+  .main{margin-left:0;padding:14px 14px 76px;width:100%;}
+  .sidebar{width:100%;height:60px;top:auto;bottom:0;flex-direction:row;border-right:none;border-top:1px solid #1e293b;padding:0;justify-content:space-around;}
+  .nav-btn{height:60px;width:auto;border-right:none;border-top:3px solid transparent;flex:1;padding:0 4px;}
+  .nav-btn.active{border-top-color:#3b82f6;border-right:none;background:rgba(59,130,246,.1);}
+  .voice-btn{margin:0;flex-shrink:0;}
+}
+</style>
+</head>
+<body><div id="ver" style="position:fixed;top:0;right:0;background:red;color:white;font-size:11px;padding:2px 6px;z-index:9999;font-family:monospace;">v9-CLEAN</div>
+<div class="app">
+
+<nav class="sidebar" id="sidebar">
+  <div style="margin-bottom:20px;color:#3b82f6;flex-shrink:0;">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+  </div>
+  <button class="nav-btn active" data-tab="dash">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+    <span class="nav-label">總覽</span>
+  </button>
+  <button class="nav-btn" data-tab="plans">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span class="nav-label">計畫</span>
+  </button>
+  <button class="nav-btn" data-tab="health">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    <span class="nav-label">健康</span>
+  </button>
+  <button class="nav-btn" data-tab="assets">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+    <span class="nav-label">資產</span>
+  </button>
+  <button class="nav-btn" data-tab="notes">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    <span class="nav-label">筆記</span>
+  </button>
+  <button class="nav-btn" data-tab="travel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+    <span class="nav-label">旅遊</span>
+  </button>
+  <button class="voice-btn" id="voiceBtn">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+  </button>
+</nav>
+
+<main class="main" id="mainArea">
+  <div style="margin-bottom:22px;">
+    <h1 style="font-size:23px;font-weight:900;color:#fff;font-style:italic;text-transform:uppercase;letter-spacing:-.04em;">人生管理</h1>
+    <p class="lxs" style="margin-top:4px;">Efficiency &amp; Vision</p>
+  </div>
+
+  <!-- Dashboard -->
+
+  <div id="pg-dash" class="page on">
+    <div class="grid2">
+      <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <p style="font-size:11px;font-weight:900;color:#60a5fa;text-transform:uppercase;letter-spacing:.13em;font-style:italic;">⬡ 人生雷達圖</p>
+        <svg id="radarSvg" viewBox="0 0 200 200" style="width:100%;max-width:190px;display:block;"></svg>
+      </div>
+      <div class="ai-blue" style="display:flex;flex-direction:column;gap:11px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;font-weight:900;color:#60a5fa;text-transform:uppercase;letter-spacing:.07em;font-style:italic;">✦ AI 生命分析</span>
+          <button class="bgh" data-act="genAI">重新產生</button>
+        </div>
+        <p id="aiSum" style="font-size:13px;color:#cbd5e1;line-height:1.7;white-space:pre-wrap;flex:1;min-height:60px;">點擊「重新產生」取得 AI 專屬分析...</p>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec" style="margin-bottom:13px;">📅 年度目標進度</p>
+      <div id="dash-yearly"></div>
+    </div>
+    <div class="total-card">
+      <p class="lxs">總資產市值（淨值）</p>
+      <div id="dashTotal" style="font-size:34px;font-weight:900;color:#fff;font-style:italic;margin:8px 0 20px;"></div>
+      <svg id="pie-dash" viewBox="-1.15 -1.15 2.3 2.3" style="transform:rotate(-90deg);width:100%;max-width:210px;height:auto;display:block;margin:0 auto;"></svg>
+      <div id="leg-dash" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:13px;"></div>
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <p class="lxs">緊急預備金</p>
+          <p id="emgDisplay" style="font-size:21px;font-weight:900;color:#60a5fa;font-style:italic;margin-top:4px;">$0</p>
+        </div>
+        <button class="bgh" data-act="editEmg">修改金額</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plans -->
+
+  <div id="pg-plans" class="page">
+    <div class="card">
+      <div class="hrow"><span class="sec">年度目標計畫</span>
+        <button class="bb" data-act="addYearly"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="yearlyList"></div>
+    </div>
+    <div class="card">
+      <div class="hrow"><span class="sec">每日任務管理</span>
+        <button class="bb" data-act="addDaily"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="dailyList"></div>
+    </div>
+  </div>
+
+  <!-- Health -->
+
+  <div id="pg-health" class="page">
+    <div class="card">
+      <div class="hrow"><span class="sec">健康數據趨勢</span>
+        <button class="bb" data-act="addHealth"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="healthChart"></div>
+      <p class="lxs" style="margin:15px 0 9px;">歷史記錄</p>
+      <div id="healthLogs"></div>
+    </div>
+  </div>
+
+  <!-- Assets -->
+
+  <div id="pg-assets" class="page">
+    <div class="ai-green">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
+        <span style="font-size:11px;font-weight:900;color:#34d399;text-transform:uppercase;letter-spacing:.07em;">ⓘ AI 資產配置建議</span>
+        <button class="bgg" data-act="assetAI">開始分析</button>
+      </div>
+      <p id="assetAdv" style="font-size:13px;color:#94a3b8;line-height:1.6;font-style:italic;">點擊「開始分析」，AI 將提供資產配置優化建議。</p>
+    </div>
+    <div class="gridA">
+      <div class="total-card" style="border-radius:22px;">
+        <p class="lxs">總資產市值</p>
+        <div id="assetTotal" style="font-size:26px;font-weight:900;color:#fff;font-style:italic;margin:7px 0 17px;"></div>
+        <svg id="pie-asset" viewBox="-1.15 -1.15 2.3 2.3" style="transform:rotate(-90deg);width:100%;max-width:190px;height:auto;display:block;margin:0 auto;"></svg>
+        <div id="leg-asset" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:11px;"></div>
+      </div>
+      <div class="card">
+        <div class="hrow"><span class="sec">資產明細</span>
+          <button class="bb" data-act="addAsset"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        </div>
+        <div id="assetList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+
+  <div id="pg-notes" class="page">
+    <div class="grid2">
+      <div class="card"><div class="hrow"><span class="lxs">人生成長</span><button class="bb" data-act="addNote-life" style="padding:7px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div><div id="notes-life"></div></div>
+      <div class="card"><div class="hrow"><span class="lxs">書籍重點</span><button class="bb" data-act="addNote-book" style="padding:7px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div><div id="notes-book"></div></div>
+      <div class="card"><div class="hrow"><span class="lxs">台指交易</span><button class="bb" data-act="addNote-trading" style="padding:7px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div><div id="notes-trading"></div></div>
+      <div class="card"><div class="hrow"><span class="lxs">網路心得</span><button class="bb" data-act="addNote-web" style="padding:7px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></div><div id="notes-web"></div></div>
+    </div>
+  </div>
+
+  <!-- Travel -->
+
+  <div id="pg-travel" class="page">
+    <div class="card">
+      <div class="hrow"><span class="sec">旅遊願望與行程</span>
+        <button class="bg" data-act="addTravel"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="travelList"></div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- Modal -->
+
+<div class="mwrap" id="mwrap">
+  <div class="mbox">
+    <button class="mcls" data-act="closeModal"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div id="mTit" class="mtit"></div>
+    <form id="mForm"><div id="mFields"></div><button type="submit" class="msub">確認送出</button></form>
+  </div>
+</div>
+
+<script>
+/* -------------------------------------------------
+   SAFARI-SAFE: ONE event listener on document.body
+   All interactions via data-act / data-* attributes
+   No cloneNode. No touchend. No async/await.
+   ------------------------------------------------- */
+
+var GK = 'AIzaSyAky6gF4ekVOuL0JiCr8ayBpD83wrLqe28';
+var PC = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+var PAGES = ['dash','plans','health','assets','notes','travel'];
+var NKEYS = ['life','book','trading','web'];
+
+function ls(k){ try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;} }
+function ss(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+function uid(){ return '_'+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function el(id){ return document.getElementById(id); }
+
+var DB = ls('lm5') || {};
+var radar = {wealth:50,health:50,growth:50,discipline:50,experience:50};
+var aiOn = false;
+var dragSrc = null;
+var mMeta = {};
+var curTab = 'dash';
+
+if (!DB.assets || !DB.assets.length) {
+  DB.assets = [
+    {id:uid(),name:'台股',amount:2544261,category:'台股',createdAt:Date.now()},
+    {id:uid(),name:'美股',amount:829175,category:'美股',createdAt:Date.now()},
+    {id:uid(),name:'台新外幣(活)-USD',amount:4257,category:'美股',createdAt:Date.now()},
+    {id:uid(),name:'台新外幣(活)-JPY',amount:6006,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'台新外幣(定)-USD',amount:75473,category:'美股',createdAt:Date.now()},
+    {id:uid(),name:'合庫(活存)',amount:1357878,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'台新(活存)',amount:57170,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'彰銀(活存)',amount:457003,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'兆豐(備用金)',amount:43314,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'黃金(2.2盎司)',amount:357357,category:'黃金',createdAt:Date.now()},
+    {id:uid(),name:'台幣現金',amount:20000,category:'現金',createdAt:Date.now()},
+    {id:uid(),name:'借志',amount:300000,category:'借款',createdAt:Date.now()}
+  ];
+  ss('lm5', DB);
+}
+
+// -- SINGLE global click handler ------------------
+// Bound once on document - never removed, never re-added
+// Works on ALL elements including dynamically rendered ones
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  // Walk up DOM to find data-act or data-* handler
+  while (t && t !== document) {
+    var act = t.getAttribute('data-act');
+    if (act) { handleAct(act, t, e); return; }
+    // data-tab on nav buttons
+    var tab = t.getAttribute('data-tab');
+    if (tab) { switchTab(tab); return; }
+    t = t.parentElement;
+  }
+});
+
+// -- change handler for progress inputs -----------
+document.addEventListener('change', function(e) {
+  var t = e.target;
+  if (t.getAttribute('data-act') === 'prog') {
+    var col = t.getAttribute('data-col');
+    var id  = t.getAttribute('data-id');
+    var v   = Math.min(100, Math.max(0, parseInt(t.value) || 0));
+    if (!DB[col]) return;
+    DB[col] = DB[col].map(function(x){ return x.id===id ? merge(x,{progress:v}) : x; });
+    ss('lm5',DB); renderAll();
+  }
+});
+
+function handleAct(act, el, e) {
+  // Tab actions
+  if (act === 'closeModal') { closeModal(); return; }
+  if (act === 'genAI')   { generateAI(); return; }
+  if (act === 'assetAI') { getAssetAI(); return; }
+  if (act === 'voice')   { handleVoice(); return; }
+  if (act === 'editEmg') { openModal('emergency_fund','edit','修改緊急預備金',[{name:'value',label:'金額',type:'number'}]); return; }
+  if (act === 'addYearly'){ openModal('plans_yearly','add','新增年度計畫',[{name:'title',label:'目標名稱',type:'text'},{name:'progress',label:'目前進度(%)',type:'number'}]); return; }
+  if (act === 'addDaily') { openModal('plans_daily','add','新增每日任務',[{name:'title',label:'任務內容',type:'text'}]); return; }
+  if (act === 'addHealth'){ openModal('health_logs','add','記錄今日數據',[{name:'weight',label:'體重(kg)',type:'number'},{name:'fat',label:'體脂(%)',type:'number'},{name:'muscle',label:'肌肉量(kg)',type:'number'}]); return; }
+  if (act === 'addAsset') { openModal('assets','add','新增資產',[{name:'name',label:'名稱',type:'text'},{name:'amount',label:'市值金額',type:'number'},{name:'category',label:'分類(台股/美股/現金/黃金/借款)',type:'text'}]); return; }
+  if (act === 'addTravel'){ openModal('travel','add','新增旅遊行程',[{name:'destination',label:'目的地',type:'text'},{name:'start',label:'開始日期',type:'date'},{name:'end',label:'結束日期',type:'date'}]); return; }
+  if (act.indexOf('addNote-') === 0) {
+    var nk = act.slice(8);
+    openModal('notes_'+nk,'add','新增筆記',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}]); return;
+  }
+  // Delete
+  if (act === 'del') {
+    var col = el.getAttribute('data-col'), id = el.getAttribute('data-id');
+    if (!DB[col]) return;
+    DB[col] = DB[col].filter(function(x){return x.id!==id;});
+    ss('lm5',DB); renderAll(); return;
+  }
+  // Edit asset
+  if (act === 'editAsset') {
+    var id = el.getAttribute('data-id');
+    openModal('assets','edit','編輯資產',[{name:'name',label:'名稱',type:'text'},{name:'amount',label:'市值金額',type:'number'},{name:'category',label:'分類',type:'text'}], id); return;
+  }
+  // Edit note
+  if (act === 'editNote') {
+    var nk = el.getAttribute('data-nk'), id = el.getAttribute('data-id');
+    openModal('notes_'+nk,'edit','編輯筆記',[{name:'title',label:'標題',type:'text'},{name:'content',label:'內容',type:'textarea'}], id); return;
+  }
+  // Toggle note
+  if (act === 'toggleNote') {
+    var nk = el.getAttribute('data-nk'), id = el.getAttribute('data-id');
+    var body = document.getElementById('nb-'+nk+'-'+id);
+    var chev = document.getElementById('nc-'+nk+'-'+id);
+    if (!body) return;
+    var isOpen = body.className === 'nbody on';
+    body.className = isOpen ? 'nbody' : 'nbody on';
+    if (chev) chev.textContent = isOpen ? '&#9662;' : '&#9652;';
+    return;
+  }
+}
+
+// -- Tab switching --------------------------------
+function switchTab(id) {
+  curTab = id;
+  PAGES.forEach(function(p) {
+    var pg = document.getElementById('pg-'+p);
+    if (pg) pg.className = (p===id) ? 'page on' : 'page';
+  });
+  // Update nav buttons
+  var navBtns = document.querySelectorAll('.nav-btn');
+  for (var i=0; i<navBtns.length; i++) {
+    var tab = navBtns[i].getAttribute('data-tab');
+    navBtns[i].className = (tab===id) ? 'nav-btn active' : 'nav-btn';
+  }
+  renderAll();
+}
+
+// Voice button needs direct binding since it has no data-act in HTML
+document.getElementById('voiceBtn').addEventListener('click', function() { handleVoice(); });
+
+// -- Modal ----------------------------------------
+// Close on backdrop click
+document.getElementById('mwrap').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+document.getElementById('mForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var data = {}, fd = new FormData(e.target);
+  fd.forEach(function(v,k){ data[k]=v; });
+  var col=mMeta.col, type=mMeta.type, eid=mMeta.eid;
+  if (col==='emergency_fund') {
+    DB.emergencyFund = Number(data.value);
+  } else if (type==='edit') {
+    DB[col] = (DB[col]||[]).map(function(x){ return x.id===eid ? merge(x,data) : x; });
+  } else {
+    if (!DB[col]) DB[col]=[];
+    DB[col].push(merge({id:uid(),createdAt:Date.now()}, data));
+  }
+  ss('lm5',DB); closeModal(); renderAll();
+});
+
+function openModal(col, type, title, fields, editId) {
+  mMeta = {col:col, type:type, eid:editId};
+  document.getElementById('mTit').textContent = title;
+  var init = {};
+  if (type==='edit' && editId && col!=='emergency_fund') {
+    (DB[col]||[]).forEach(function(x){ if(x.id===editId) init=x; });
+  }
+  if (col==='emergency_fund') init={value:DB.emergencyFund||0};
+  document.getElementById('mFields').innerHTML = fields.map(function(f){
+    var v = esc(String(init[f.name]==null?'':init[f.name]));
+    return '<div class="fg"><label>'+f.label+'</label>'
+      +(f.type==='textarea'?'<textarea name="'+f.name+'">'+v+'</textarea>':'<input name="'+f.name+'" type="'+f.type+'" step="any" value="'+v+'">')
+
+```
+  +'</div>';
+```
+
+}).join(’’);
+document.getElementById(‘mwrap’).className = ‘mwrap on’;
+}
+
+function closeModal() {
+document.getElementById(‘mwrap’).className = ‘mwrap’;
+}
+
+// – Data helpers ———————————
+function merge(a,b){ var r={}; for(var k in a) r[k]=a[k]; for(var k in b) r[k]=b[k]; return r; }
+
+function cats() {
+var c={‘台股’:0,‘美股’:0,‘現金’:0,‘黃金’:0,‘借款’:0};
+(DB.assets||[]).forEach(function(a){
+var cat=a.category||‘現金’;
+c[cat]=(c[cat]||0)+(Number(a.amount)||0);
+});
+return Object.keys(c).map(function(k){return{name:k,amt:c[k]};});
+}
+function tot(){ return cats().reduce(function(s,x){return s+x.amt;},0); }
+
+// – Charts —————————————
+function drawPie(svgId, legId) {
+var svg=document.getElementById(svgId), leg=document.getElementById(legId);
+if(!svg) return;
+svg.innerHTML=’’;
+var data=cats(), total=tot();
+if(!total) return;
+var cum=0;
+function pt(p){return[Math.cos(2*Math.PI*p),Math.sin(2*Math.PI*p)];}
+data.forEach(function(d,i){
+var pct=d.amt/total; if(pct<=0) return;
+var a0=cum; cum+=pct;
+var p0=pt(a0),p1=pt(cum),pm=pt(a0+pct/2);
+var large=pct>.5?1:0;
+var path=document.createElementNS(‘http://www.w3.org/2000/svg’,‘path’);
+path.setAttribute(‘d’,‘M’+p0[0]+’ ‘+p0[1]+’ A1 1 0 ‘+large+’ 1 ‘+p1[0]+’ ‘+p1[1]+’ L0 0’);
+path.setAttribute(‘fill’,PC[i%PC.length]);
+path.setAttribute(‘stroke’,’#020617’); path.setAttribute(‘stroke-width’,‘0.025’);
+svg.appendChild(path);
+if(pct>.07){
+var tx=document.createElementNS(‘http://www.w3.org/2000/svg’,‘text’);
+var x=pm[0]*.67,y=pm[1]*.67;
+tx.setAttribute(‘x’,x); tx.setAttribute(‘y’,y);
+tx.setAttribute(‘fill’,’#fff’); tx.setAttribute(‘font-size’,‘0.115’);
+tx.setAttribute(‘font-weight’,‘bold’); tx.setAttribute(‘text-anchor’,‘middle’);
+tx.setAttribute(‘dominant-baseline’,‘middle’);
+tx.setAttribute(‘transform’,‘rotate(90,’+x+’,’+y+’)’);
+tx.textContent=d.name+’ ‘+Math.round(pct*100)+’%’;
+svg.appendChild(tx);
+}
+});
+if(leg) leg.innerHTML=data.map(function(d,i){
+var col=PC[i%PC.length];
+return ‘<span style="font-size:11px;font-weight:700;color:'+col+';display:inline-flex;align-items:center;gap:4px;">’
++’<span style="width:8px;height:8px;border-radius:50%;background:'+col+';display:inline-block;"></span>’
++d.name+’: $’+Number(d.amt).toLocaleString()+’</span>’;
+}).join(’’);
+}
+
+function drawRadar() {
+var svg=document.getElementById(‘radarSvg’); if(!svg) return;
+svg.innerHTML=’’;
+var K=[‘wealth’,‘health’,‘growth’,‘discipline’,‘experience’],L=[‘財務’,‘健康’,‘成長’,‘自律’,‘體驗’];
+var C=100,R=64;
+function pt(i,v){var a=Math.PI*2*i/5-Math.PI/2;return[C+R*(v/100)*Math.cos(a),C+R*(v/100)*Math.sin(a)];}
+[20,40,60,80,100].forEach(function(v){
+var el=document.createElementNS(‘http://www.w3.org/2000/svg’,‘polygon’);
+el.setAttribute(‘points’,K.map(function(*,j){return pt(j,v).join(’,’);}).join(’ ‘));
+el.setAttribute(‘fill’,‘none’);el.setAttribute(‘stroke’,’#1e293b’);el.setAttribute(‘stroke-width’,‘0.8’);
+svg.appendChild(el);
+});
+K.forEach(function(*,i){
+var p=pt(i,100),el=document.createElementNS(‘http://www.w3.org/2000/svg’,‘line’);
+el.setAttribute(‘x1’,C);el.setAttribute(‘y1’,C);el.setAttribute(‘x2’,p[0]);el.setAttribute(‘y2’,p[1]);
+el.setAttribute(‘stroke’,’#1e293b’);el.setAttribute(‘stroke-width’,‘0.8’);svg.appendChild(el);
+});
+var poly=document.createElementNS(‘http://www.w3.org/2000/svg’,‘polygon’);
+poly.setAttribute(‘points’,K.map(function(k,i){return pt(i,radar[k]||50).join(’,’);}).join(’ ‘));
+poly.setAttribute(‘fill’,‘rgba(59,130,246,.18)’);poly.setAttribute(‘stroke’,’#3b82f6’);
+poly.setAttribute(‘stroke-width’,‘2’);poly.setAttribute(‘stroke-linejoin’,‘round’);
+svg.appendChild(poly);
+K.forEach(function(k,i){
+var p=pt(i,radar[k]||50),c=document.createElementNS(‘http://www.w3.org/2000/svg’,‘circle’);
+c.setAttribute(‘cx’,p[0]);c.setAttribute(‘cy’,p[1]);c.setAttribute(‘r’,‘3.5’);c.setAttribute(‘fill’,’#3b82f6’);
+svg.appendChild(c);
+});
+L.forEach(function(l,i){
+var p=pt(i,122),t=document.createElementNS(‘http://www.w3.org/2000/svg’,‘text’);
+t.setAttribute(‘x’,p[0]);t.setAttribute(‘y’,p[1]);t.setAttribute(‘fill’,’#64748b’);
+t.setAttribute(‘font-size’,‘10’);t.setAttribute(‘font-weight’,‘bold’);
+t.setAttribute(‘text-anchor’,‘middle’);t.setAttribute(‘dominant-baseline’,‘middle’);
+t.textContent=l; svg.appendChild(t);
+});
+}
+
+function drawHealth() {
+var cont=document.getElementById(‘healthChart’); if(!cont) return;
+var data=DB.health_logs||[];
+if(data.length<2){cont.innerHTML=’<p class="empty">請新增至少兩筆資料以顯示趨勢圖</p>’;return;}
+var W=360,H=140,P=22,K=[‘weight’,‘fat’,‘muscle’],C=[’#3b82f6’,’#ef4444’,’#10b981’],L=[‘體重’,‘體脂’,‘肌肉’];
+function gp(k){
+var v=data.map(function(d){return parseFloat(d[k])||0;});
+var mn=Math.min.apply(null,v),mx=Math.max.apply(null,v),rng=mx===mn?1:mx-mn;
+return data.map(function(d,i){return{x:P+(i/(data.length-1))*(W-2*P),y:(H-P)-((parseFloat(d[k])||0)-mn)/rng*(H-2*P)};});
+}
+var s=’’;
+K.forEach(function(k,i){
+var pts=gp(k);
+s+=’<polyline fill="none" stroke="'+C[i]+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="'+pts.map(function(p){return p.x+','+p.y;}).join(' ')+'"/>’;
+pts.forEach(function(p){s+=’<circle cx="'+p.x+'" cy="'+p.y+'" r="4" fill="'+C[i]+'" stroke="#020617" stroke-width="1.5"/>’;});
+});
+var leg=L.map(function(l,i){return’<span style="font-size:11px;color:'+C[i]+';font-weight:900;display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:3px;background:'+C[i]+';border-radius:2px;display:inline-block;"></span>’+l+’</span>’;}).join(’’);
+cont.innerHTML=’<div style="background:rgba(2,6,23,.4);padding:12px;border-radius:11px;border:1px solid #1e293b;"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:120px;overflow:visible;">’+s+’</svg><div style="display:flex;gap:16px;justify-content:center;margin-top:8px;">’+leg+’</div></div>’;
+}
+
+// – Render functions —————————–
+function renderDashStats() {
+var t=tot();
+var ed=el(‘emgDisplay’),dt=el(‘dashTotal’),at=el(‘assetTotal’);
+if(ed) ed.textContent=’$’+Number(DB.emergencyFund||0).toLocaleString();
+if(dt) dt.textContent=’$’+t.toLocaleString();
+if(at) at.textContent=’$’+t.toLocaleString();
+}
+
+function renderDashYearly() {
+var cont=el(‘dash-yearly’); if(!cont) return;
+var items=(DB.plans_yearly||[]).slice(0,5);
+if(!items.length){cont.innerHTML=’<p class="empty">尚無計畫,前往「計畫」頁新增</p>’;return;}
+cont.innerHTML=items.map(function(p){
+return ‘<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;font-style:italic;margin-bottom:4px;"><span>’+esc(p.title)+’</span><span style="color:#60a5fa;">’+(p.progress||0)+’%</span></div><div class="pbar"><div class="pfil" style="width:'+(p.progress||0)+'%;"></div></div></div>’;
+}).join(’’);
+}
+
+function renderYearly() {
+var cont=el(‘yearlyList’); if(!cont) return;
+var items=DB.plans_yearly||[];
+if(!items.length){cont.innerHTML=’<p class="empty">尚無項目,點擊 + 新增</p>’;return;}
+cont.innerHTML=items.map(function(item,idx){
+return ‘<div class="ditem" draggable="true" data-drag-col="plans_yearly" data-drag-idx="'+idx+'">’
++’<span style="color:#475569;cursor:grab;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg></span>’
++’<div style="flex:1;min-width:0;"><p style="font-size:14px;font-weight:900;font-style:italic;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">’+esc(item.title)+’</p></div>’
++’<input class="pinp" type="number" min="0" max="100" value="'+(item.progress||0)+'" data-act="prog" data-col="plans_yearly" data-id="'+item.id+'">’
++’<button class="bd" data-act="del" data-col="plans_yearly" data-id="'+item.id+'">’+trashSvg()+’</button>’
++’</div>’;
+}).join(’’);
+bindDrag(‘yearlyList’,‘plans_yearly’);
+}
+
+function renderDaily() {
+var cont=el(‘dailyList’); if(!cont) return;
+var items=DB.plans_daily||[];
+if(!items.length){cont.innerHTML=’<p class="empty">尚無項目,點擊 + 新增</p>’;return;}
+cont.innerHTML=items.map(function(item,idx){
+return ‘<div class="ditem" draggable="true" data-drag-col="plans_daily" data-drag-idx="'+idx+'">’
++’<span style="color:#475569;cursor:grab;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg></span>’
++’<div style="flex:1;min-width:0;"><p style="font-size:14px;font-weight:900;font-style:italic;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">’+esc(item.title)+’</p></div>’
++’<button class="bd" data-act="del" data-col="plans_daily" data-id="'+item.id+'">’+trashSvg()+’</button>’
++’</div>’;
+}).join(’’);
+bindDrag(‘dailyList’,‘plans_daily’);
+}
+
+function renderAssets() {
+var cont=el(‘assetList’); if(!cont) return;
+var items=DB.assets||[];
+if(!items.length){cont.innerHTML=’<p class="empty">尚無資產</p>’;return;}
+cont.innerHTML=items.map(function(a){
+return ‘<div class="aitem">’
++’<div style="flex:1;min-width:0;padding-right:9px;">’
++’<div style="font-size:13px;font-weight:900;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">’+esc(a.name)+’</div>’
++’<div style="display:flex;gap:7px;margin-top:3px;align-items:center;">’
++’<span style="font-size:10px;color:#64748b;font-weight:900;text-transform:uppercase;">’+esc(a.category)+’</span>’
++’<span style="font-size:14px;font-weight:900;color:#60a5fa;font-style:italic;">$’+Number(a.amount).toLocaleString()+’</span>’
++’</div></div>’
++’<div style="display:flex;gap:2px;flex-shrink:0;">’
++’<button class="be" data-act="editAsset" data-id="'+a.id+'">’+editSvg()+’</button>’
++’<button class="bd" data-act="del" data-col="assets" data-id="'+a.id+'">’+trashSvg()+’</button>’
++’</div></div>’;
+}).join(’’);
+}
+
+function renderHealthLogs() {
+var cont=el(‘healthLogs’); if(!cont) return;
+var logs=(DB.health_logs||[]).slice().reverse().slice(0,10);
+if(!logs.length){cont.innerHTML=’<p class="empty">尚無記錄</p>’;return;}
+cont.innerHTML=logs.map(function(l){
+return ‘<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 13px;background:rgba(30,41,59,.2);border-radius:10px;margin-bottom:7px;border:1px solid #1e293b;gap:8px;">’
++’<span style="font-size:11px;color:#64748b;flex-shrink:0;">’+new Date(l.createdAt).toLocaleDateString(‘zh-TW’)+’</span>’
++’<div style="display:flex;gap:9px;flex-wrap:wrap;flex:1;">’
++(l.weight?’<span style="font-size:12px;color:#3b82f6;font-weight:900;">體重 ‘+l.weight+‘kg</span>’:’’)
++(l.fat?’<span style="font-size:12px;color:#ef4444;font-weight:900;">體脂 ‘+l.fat+’%</span>’:’’)
++(l.muscle?’<span style="font-size:12px;color:#10b981;font-weight:900;">肌肉 ‘+l.muscle+‘kg</span>’:’’)
++’</div>’
++’<button class="bd" data-act="del" data-col="health_logs" data-id="'+l.id+'">’+trashSvg()+’</button>’
++’</div>’;
+}).join(’’);
+}
+
+function renderNotes(key) {
+var cont=el(‘notes-’+key); if(!cont) return;
+var items=DB[‘notes_’+key]||[];
+if(!items.length){cont.innerHTML=’<p class="empty">尚無筆記</p>’;return;}
+cont.innerHTML=items.map(function(n){
+return ‘<div class="nc">’
++’<button class="nhdr" data-act="toggleNote" data-nk="'+key+'" data-id="'+n.id+'">’
++’<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;padding-right:8px;">’+esc(n.title)+’</span>’
++’<span id="nc-'+key+'-'+n.id+'" style="color:#475569;flex-shrink:0;font-style:normal;">▾</span>’
++’</button>’
++’<div id="nb-'+key+'-'+n.id+'" class="nbody">’
++’<p style="white-space:pre-wrap;margin-bottom:11px;">’+esc(n.content||’’)+’</p>’
++’<div style="display:flex;justify-content:flex-end;gap:12px;">’
++’<button class="bsb" data-act="editNote" data-nk="'+key+'" data-id="'+n.id+'">編輯</button>’
++’<button class="bsr" data-act="del" data-col="notes_'+key+'" data-id="'+n.id+'">刪除</button>’
++’</div></div></div>’;
+}).join(’’);
+}
+
+function renderTravel() {
+var cont=el(‘travelList’); if(!cont) return;
+var items=DB.travel||[];
+if(!items.length){cont.innerHTML=’<p class="empty">尚無行程,點擊 + 新增</p>’;return;}
+cont.innerHTML=items.map(function(t){
+return ‘<div class="tcard">’
++’<div style="display:flex;align-items:center;gap:12px;">’
++’<div class="tico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>’
++’<div><p style="font-size:14px;font-weight:900;font-style:italic;color:#fff;">’+esc(t.destination)+’</p>’
++’<p style="font-size:11px;color:#64748b;font-weight:700;margin-top:3px;">’+esc(t.start)+’ ~ ‘+esc(t.end)+’</p></div>’
++’</div>’
++’<button class="bd" data-act="del" data-col="travel" data-id="'+t.id+'">’+trashSvg()+’</button>’
++’</div>’;
+}).join(’’);
+}
+
+function trashSvg(){ return ‘<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>’; }
+function editSvg(){ return ‘<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>’; }
+
+function renderAll() {
+drawRadar(); drawPie(‘pie-dash’,‘leg-dash’); drawPie(‘pie-asset’,‘leg-asset’);
+renderDashStats(); renderDashYearly();
+renderYearly(); renderDaily();
+renderAssets(); renderHealthLogs(); drawHealth();
+NKEYS.forEach(renderNotes);
+renderTravel();
+}
+
+// – Drag & Drop (desktop) ————————
+function bindDrag(containerId, col) {
+var cont = el(containerId); if(!cont) return;
+var items = cont.querySelectorAll(’[data-drag-col=”’+col+’”]’);
+for (var i=0; i<items.length; i++) {
+(function(item) {
+item.addEventListener(‘dragstart’, function(e){ dragSrc=item; e.dataTransfer.effectAllowed=‘move’; });
+item.addEventListener(‘dragover’,  function(e){ e.preventDefault(); item.className=‘ditem dov’; });
+item.addEventListener(‘dragleave’, function(){ item.className=‘ditem’; });
+item.addEventListener(‘dragend’,   function(){ item.className=‘ditem’; });
+item.addEventListener(‘drop’, function(e){
+e.preventDefault(); item.className=‘ditem’;
+if(!dragSrc||dragSrc===item) return;
+var fi=parseInt(dragSrc.getAttribute(‘data-drag-idx’));
+var ti=parseInt(item.getAttribute(‘data-drag-idx’));
+var arr=(DB[col]||[]).slice(), rm=arr.splice(fi,1);
+arr.splice(ti,0,rm[0]); DB[col]=arr; ss(‘lm5’,DB); renderAll();
+});
+})(items[i]);
+}
+}
+
+// – AI —————————————––
+function callAI(prompt, asJson) {
+var url=‘https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=’+GK;
+var body={contents:[{parts:[{text:prompt}]}]};
+if(asJson) body.generationConfig={responseMimeType:‘application/json’};
+return fetch(url,{method:‘POST’,headers:{‘Content-Type’:‘application/json’},body:JSON.stringify(body)})
+.then(function(r){return r.json();})
+.then(function(d){
+try{return d.candidates[0].content.parts[0].text||’’;}catch(e){return ‘’;}
+});
+}
+
+function generateAI() {
+if(aiOn) return; aiOn=true;
+var btn=el(‘aiBtn’) ? document.querySelector(’[data-act=“genAI”]’) : null;
+var sum=el(‘aiSum’);
+if(btn) btn.textContent=‘運算中…’;
+var ctx=‘資產總額:’+tot().toLocaleString()+‘元,配置:’+JSON.stringify(cats());
+Promise.all([
+callAI(‘分析人生數據,對財務、健康、自我成長、執行力、生活體驗各評0-100分,只回傳JSON:{“wealth”:N,“health”:N,“growth”:N,“discipline”:N,“experience”:N}。資料:’+ctx, true),
+callAI(‘根據資料:’+ctx+’,用繁體中文約150字給出人生成長與理財建議。’, false)
+]).then(function(res){
+try{if(res[0]) radar=JSON.parse(res[0]);}catch(e){}
+if(sum) sum.textContent=res[1]||‘AI 分析完成。’;
+drawRadar();
+}).catch(function(){
+if(sum) sum.textContent=‘AI 分析暫時無法使用,請確認網路連線。’;
+}).then(function(){ aiOn=false; if(btn) btn.textContent=‘重新產生’; });
+}
+
+function getAssetAI() {
+if(aiOn) return; aiOn=true;
+var btn=document.querySelector(’[data-act=“assetAI”]’);
+var adv=el(‘assetAdv’);
+if(btn) btn.textContent=‘分析中…’;
+callAI(‘分析資產配置:’+JSON.stringify(cats())+’,用繁體中文約100字給出具體優化建議。’,false)
+.then(function(r){if(adv) adv.textContent=r||‘分析完成。’;})
+.catch(function(){if(adv) adv.textContent=‘AI 分析暫時無法使用。’;})
+.then(function(){aiOn=false;if(btn) btn.textContent=‘開始分析’;});
+}
+
+function handleVoice() {
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var btn=el(‘voiceBtn’);
+if(!SR){alert(‘語音輸入需要允許麥克風,或使用 Chrome 瀏覽器。’);return;}
+var rec=new SR(); rec.lang=‘zh-TW’; rec.start();
+if(btn) btn.className=‘voice-btn on’;
+rec.onresult=function(ev){
+var t=ev.results[0][0].transcript;
+if(btn) btn.className=‘voice-btn’;
+callAI(‘Parse this voice input: ‘+t+’. Return ONLY JSON: {“type”:“health_logs”,“data”:{“weight”:number_or_null,“fat”:number_or_null,“muscle”:number_or_null}}’,true)
+.then(function(r){
+try{
+var p=JSON.parse(r);
+if(!DB[p.type]) DB[p.type]=[];
+DB[p.type].push(merge({id:uid(),createdAt:Date.now()},p.data));
+ss(‘lm5’,DB); renderAll();
+}catch(e){}
+});
+};
+rec.onerror=function(){if(btn) btn.className=‘voice-btn’;};
+}
+
+// – INIT —————————————–
+renderAll();
+</script>
+
+</body>
+</html>
